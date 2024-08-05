@@ -24,6 +24,7 @@ pragma solidity ^0.8.19;
 import { Ownable2Step, Ownable } from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import { Timelock2Step } from "./Timelock2Step.sol";
 import { FraxlendPairAccessControlErrors } from "./FraxlendPairAccessControlErrors.sol";
+import { IERC4626Extended } from './interfaces/IERC4626Extended.sol';
 
 /// @title FraxlendPairAccessControl
 /// @author Drake Evans (Frax Finance) https://github.com/drakeevans
@@ -34,6 +35,9 @@ abstract contract FraxlendPairAccessControl is Timelock2Step, Ownable2Step, Frax
 
     // Admin contracts
     address public circuitBreakerAddress;
+
+    // External asset vault
+    IERC4626Extended public externalAssetVault;
 
     // access control
     uint256 public borrowLimit = type(uint256).max;
@@ -194,6 +198,20 @@ abstract contract FraxlendPairAccessControl is Timelock2Step, Ownable2Step, Frax
     function _pauseInterest(bool _isPaused) internal {
         isInterestPaused = _isPaused;
         emit PauseInterest(_isPaused);
+    }
+
+    /// @notice The ```SetExternalAssetVault``` event is emitted when the external vault account is changed
+    event SetExternalAssetVault(address oldVault, address newVault);
+
+    function _setExternalAssetVault(IERC4626Extended vault) internal {
+        IERC4626Extended _oldVault = externalAssetVault;
+        externalAssetVault = vault;
+        emit SetExternalAssetVault(address(_oldVault), address(vault));
+    }
+
+    function setExternalAssetVault(IERC4626Extended vault) external {
+        _requireTimelock();
+        _setExternalAssetVault(vault);
     }
 
     /// @notice The ```SetCircuitBreaker``` event is emitted when the circuit breaker address is set

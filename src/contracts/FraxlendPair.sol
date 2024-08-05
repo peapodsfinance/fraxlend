@@ -139,7 +139,7 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
         )
     {
         (, , , , VaultAccount memory _totalAsset, VaultAccount memory _totalBorrow) = previewAddInterest();
-        _totalAssetAmount = _totalAsset.amount;
+        _totalAssetAmount = uint128(_totalAsset.totalAmount(address(externalAssetVault)));
         _totalAssetShares = _totalAsset.shares;
         _totalBorrowAmount = _totalBorrow.amount;
         _totalBorrowShares = _totalBorrow.shares;
@@ -232,17 +232,17 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
 
     function totalAssets() external view returns (uint256) {
         (, , , , VaultAccount memory _totalAsset, ) = previewAddInterest();
-        return _totalAsset.amount;
+        return _totalAsset.totalAmount(address(externalAssetVault));
     }
 
     function maxDeposit(address _receiver) public view returns (uint256 _maxAssets) {
         (, , , , VaultAccount memory _totalAsset, ) = previewAddInterest();
-        _maxAssets = _totalAsset.amount >= depositLimit ? 0 : depositLimit - _totalAsset.amount;
+        _maxAssets = _totalAsset.totalAmount(address(externalAssetVault)) >= depositLimit ? 0 : depositLimit - _totalAsset.totalAmount(address(externalAssetVault));
     }
 
     function maxMint(address _receiver) external view returns (uint256 _maxShares) {
         (, , , , VaultAccount memory _totalAsset, ) = previewAddInterest();
-        uint256 _maxDeposit = _totalAsset.amount >= depositLimit ? 0 : depositLimit - _totalAsset.amount;
+        uint256 _maxDeposit = _totalAsset.totalAmount(address(externalAssetVault)) >= depositLimit ? 0 : depositLimit - _totalAsset.totalAmount(address(externalAssetVault));
         _maxShares = _totalAsset.toShares(_maxDeposit, false);
     }
 
@@ -260,7 +260,7 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
         uint256 _ownerBalance = _owner == address(this) ? balanceOf(_owner) + _feesShare : balanceOf(_owner);
 
         // Return the lower of total assets in contract or total assets available to _owner
-        uint256 _totalAssetsAvailable = _totalAssetAvailable(_totalAsset, _totalBorrow);
+        uint256 _totalAssetsAvailable = _totalAssetAvailable(_totalAsset, _totalBorrow, false);
         uint256 _totalUserWithdraw = _totalAsset.toAmount(_ownerBalance, false);
         _maxAssets = _totalAssetsAvailable < _totalUserWithdraw ? _totalAssetsAvailable : _totalUserWithdraw;
     }
@@ -277,7 +277,7 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
         ) = previewAddInterest();
 
         // Calculate the total shares available
-        uint256 _totalAssetsAvailable = _totalAssetAvailable(_totalAsset, _totalBorrow);
+        uint256 _totalAssetsAvailable = _totalAssetAvailable(_totalAsset, _totalBorrow, false);
         uint256 _totalSharesAvailable = _totalAsset.toShares(_totalAssetsAvailable, false);
 
         // Get the owner balance and include the fees share if owner is this contract

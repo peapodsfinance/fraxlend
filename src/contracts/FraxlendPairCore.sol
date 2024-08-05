@@ -118,6 +118,7 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
     VaultAccount public totalAsset; // amount = total amount of assets, shares = total shares outstanding
     VaultAccount public totalBorrow; // amount = total borrow amount with interest accrued, shares = total shares outstanding
     uint256 public totalCollateral; // total amount of collateral in contract
+    uint256 public externalAssetsUsed; // total amount of external assets used if an external vault is set
 
     // User Level Accounting
     /// @notice Stores the balance of collateral for each user
@@ -207,8 +208,12 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
     /// @return The balance of Asset Tokens held by contract
     function _totalAssetAvailable(
         VaultAccount memory _totalAsset,
-        VaultAccount memory _totalBorrow
-    ) internal pure returns (uint256) {
+        VaultAccount memory _totalBorrow,
+        bool _includeVault
+    ) internal view returns (uint256) {
+        if (_includeVault) {
+            return _totalAsset.totalAmount(address(externalAssetVault)) - _totalBorrow.amount;
+        }
         return _totalAsset.amount - _totalBorrow.amount;
     }
 
@@ -366,9 +371,9 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
             uint256 _deltaTime = block.timestamp - _currentRateInfo.lastTimestamp;
 
             // Get the utilization rate
-            uint256 _utilizationRate = _results.totalAsset.amount == 0
+            uint256 _utilizationRate = _results.totalAsset.totalAmount(address(externalAssetVault)) == 0
                 ? 0
-                : (UTIL_PREC * _results.totalBorrow.amount) / _results.totalAsset.amount;
+                : (UTIL_PREC * _results.totalBorrow.amount) / _results.totalAsset.totalAmount(address(externalAssetVault));
 
             // Request new interest rate and full utilization rate from the rate calculator
             (_results.newRate, _results.newFullUtilizationRate) = IRateCalculatorV2(rateContract).getNewRate(
@@ -384,7 +389,7 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
             if (
                 _results.interestEarned > 0 &&
                 _results.interestEarned + _results.totalBorrow.amount <= type(uint128).max &&
-                _results.interestEarned + _results.totalAsset.amount <= type(uint128).max
+                _results.interestEarned + _results.totalAsset.totalAmount(address(externalAssetVault)) <= type(uint128).max
             ) {
                 // Increment totalBorrow and totalAsset by interestEarned
                 _results.totalBorrow.amount += uint128(_results.interestEarned);
@@ -396,7 +401,7 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
 
                     _results.feesShare =
                         (_results.feesAmount * _results.totalAsset.shares) /
-                        (_results.totalAsset.amount - _results.feesAmount);
+                        (_results.totalAsset.totalAmount(address(externalAssetVault)) - _results.feesAmount);
 
                     // Effects: Give new shares to this contract, effectively diluting lenders an amount equal to the fees
                     // We can safely cast because _feesShare < _feesAmount < interestEarned which is always less than uint128
@@ -544,7 +549,8 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
     /// @param _amount The amount of Asset Token to be transferred
     /// @param _shares The amount of Asset Shares (fTokens) to be minted
     /// @param _receiver The address to receive the Asset Shares (fTokens)
-    function _deposit(VaultAccount memory _totalAsset, uint128 _amount, uint128 _shares, address _receiver) internal {
+    /// @param _shouldTransfer Whether asset tokens should be deposited from the sender
+    function _deposit(VaultAccount memory _totalAsset, uint128 _amount, uint128 _shares, address _receiver, bool _shouldTransfer) internal {
         // Effects: bookkeeping
         _totalAsset.amount += _amount;
         _totalAsset.shares += _shares;
@@ -554,7 +560,9 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         totalAsset = _totalAsset;
 
         // Interactions
-        assetContract.safeTransferFrom(msg.sender, address(this), _amount);
+        if (_shouldTransfer) {
+            assetContract.safeTransferFrom(msg.sender, address(this), _amount);
+        }
         emit Deposit(msg.sender, _receiver, _amount, _shares);
     }
 
@@ -578,13 +586,50 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         VaultAccount memory _totalAsset = totalAsset;
 
         // Check if this deposit will violate the deposit limit
-        if (depositLimit < _totalAsset.amount + _amount) revert ExceedsDepositLimit();
+        if (depositLimit < _totalAsset.totalAmount(address(externalAssetVault)) + _amount) revert ExceedsDepositLimit();
 
         // Calculate the number of fTokens to mint
         _sharesReceived = _totalAsset.toShares(_amount, false);
 
         // Execute the deposit effects
-        _deposit(_totalAsset, _amount.toUint128(), _sharesReceived.toUint128(), _receiver);
+        _deposit(_totalAsset, _amount.toUint128(), _sharesReceived.toUint128(), _receiver, true);
+    }
+
+    function _depositFromVault(uint256 _amount) internal returns (uint256 _sharesReceived) {
+        // Accrue interest if necessary
+        _addInterest();
+
+        // Pull from storage to save gas
+        VaultAccount memory _totalAsset = totalAsset;
+
+        // Check if this deposit will violate the deposit limit
+        if (depositLimit < _totalAsset.totalAmount(address(externalAssetVault)) + _amount) revert ExceedsDepositLimit();
+
+        // Calculate the number of fTokens to mint
+        _sharesReceived = _totalAsset.toShares(_amount, false);
+
+        // Deposit assets from vault
+        externalAssetVault.pairWithdraw(_amount);
+
+        // Execute the deposit effects
+        _deposit(_totalAsset, _amount.toUint128(), _sharesReceived.toUint128(), address(externalAssetVault), false);
+    }
+
+    /// @notice The ```redeem``` function allows the caller to redeem their Asset Shares for Asset Tokens
+    /// @param _shares The number of Asset Shares (fTokens) to burn for Asset Tokens
+    /// @return _amountToReturn The amount of Asset Tokens to be transferred
+    function _redeemToVault(uint256 _shares) internal returns (uint256 _amountToReturn) {
+        // Accrue interest if necessary
+        _addInterest();
+
+        // Pull from storage to save gas
+        VaultAccount memory _totalAsset = totalAsset;
+
+        // Calculate the number of assets to transfer based on the shares to burn
+        _amountToReturn = _totalAsset.toAmount(_shares, false);
+
+        // Execute the withdraw effects
+        _redeem(_totalAsset, _amountToReturn.toUint128(), _shares.toUint128(), address(externalAssetVault), address(externalAssetVault));
     }
 
     function previewMint(uint256 _shares) external view returns (uint256 _amount) {
@@ -605,10 +650,10 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         _amount = _totalAsset.toAmount(_shares, false);
 
         // Check if this deposit will violate the deposit limit
-        if (depositLimit < _totalAsset.amount + _amount) revert ExceedsDepositLimit();
+        if (depositLimit < _totalAsset.totalAmount(address(externalAssetVault)) + _amount) revert ExceedsDepositLimit();
 
         // Execute the deposit effects
-        _deposit(_totalAsset, _amount.toUint128(), _shares.toUint128(), _receiver);
+        _deposit(_totalAsset, _amount.toUint128(), _shares.toUint128(), _receiver, true);
     }
 
     /// @notice The ```Withdraw``` event fires when a user redeems their fTokens for the underlying asset
@@ -647,7 +692,7 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         }
 
         // Check for sufficient withdraw liquidity (not strictly necessary because balance will underflow)
-        uint256 _assetsAvailable = _totalAssetAvailable(_totalAsset, totalBorrow);
+        uint256 _assetsAvailable = _totalAssetAvailable(_totalAsset, totalBorrow, false);
         if (_assetsAvailable < _amountToReturn) {
             revert InsufficientAssetsInContract(_assetsAvailable, _amountToReturn);
         }
@@ -759,9 +804,16 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         VaultAccount memory _totalBorrow = totalBorrow;
 
         // Check available capital (not strictly necessary because balance will underflow, but better revert message)
-        uint256 _assetsAvailable = _totalAssetAvailable(totalAsset, _totalBorrow);
-        if (_assetsAvailable < _borrowAmount) {
-            revert InsufficientAssetsInContract(_assetsAvailable, _borrowAmount);
+        uint256 _totalAssetsAvailable = _totalAssetAvailable(totalAsset, _totalBorrow, true);
+        if (_totalAssetsAvailable < _borrowAmount) {
+            revert InsufficientAssetsInContract(_totalAssetsAvailable, _borrowAmount);
+        }
+        uint256 _localAssetsAvailable = _totalAssetAvailable(totalAsset, _totalBorrow, false);
+        if (_localAssetsAvailable < _borrowAmount) {
+            uint256 _externalAmt = _borrowAmount - _localAssetsAvailable; 
+            externalAssetsUsed += _externalAmt;
+            externalAssetVault.pairWithdraw(_externalAmt);
+            _depositFromVault(_externalAmt);
         }
 
         // Calculate the number of shares to add based on the amount to borrow
@@ -928,6 +980,11 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         // Interactions
         if (_payer != address(this)) {
             assetContract.safeTransferFrom(_payer, address(this), _amountToRepay);
+        }
+        if (externalAssetsUsed > 0) {
+            uint256 _extAmount = externalAssetsUsed > _amountToRepay ? _amountToRepay : externalAssetsUsed;
+            externalAssetsUsed -= _extAmount;
+            _redeemToVault(_extAmount);
         }
         emit RepayAsset(_payer, _borrower, _amountToRepay, _shares);
     }
