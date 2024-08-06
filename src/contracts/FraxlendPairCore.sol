@@ -692,9 +692,15 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         }
 
         // Check for sufficient withdraw liquidity (not strictly necessary because balance will underflow)
-        uint256 _assetsAvailable = _totalAssetAvailable(_totalAsset, totalBorrow, false);
-        if (_assetsAvailable < _amountToReturn) {
-            revert InsufficientAssetsInContract(_assetsAvailable, _amountToReturn);
+        uint256 _totAssetsAvailable = _totalAssetAvailable(_totalAsset, totalBorrow, true);
+        if (_totAssetsAvailable < _amountToReturn) {
+            revert InsufficientAssetsInContract(_totAssetsAvailable, _amountToReturn);
+        }
+        uint256 _localAssetsAvailable= _totalAssetAvailable(_totalAsset, totalBorrow, false);
+        if (_localAssetsAvailable < _amountToReturn) {
+            uint256 _vaultAmt = _amountToReturn - _localAssetsAvailable;
+            externalAssetsUsed += _vaultAmt;
+            _depositFromVault(_vaultAmt);
         }
 
         // Effects: bookkeeping
