@@ -8,5 +8,5 @@ interface IERC4626Extended is IERC4626 {
 
     function totalUsed() external view returns (uint256);
 
-    function pairWithdraw(uint256 amount) external;
+    function whitelistWithdraw(uint256 amount) external;
 }

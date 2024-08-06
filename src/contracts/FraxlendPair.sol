@@ -139,7 +139,7 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
         )
     {
         (, , , , VaultAccount memory _totalAsset, VaultAccount memory _totalBorrow) = previewAddInterest();
-        _totalAssetAmount = uint128(_totalAsset.totalAmount(address(externalAssetVault)));
+        _totalAssetAmount = _totalAsset.totalAmount(address(externalAssetVault)).toUint128();
         _totalAssetShares = _totalAsset.shares;
         _totalBorrowAmount = _totalBorrow.amount;
         _totalBorrowShares = _totalBorrow.shares;
@@ -468,7 +468,7 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
         VaultAccount memory _totalAsset = totalAsset;
 
         // Take all available if 0 value passed
-        if (_shares == 0) _shares = uint128(balanceOf(address(this)));
+        if (_shares == 0) _shares = balanceOf(address(this)).toUint128();
 
         // We must calculate this before we subtract from _totalAsset or invoke _burn
         _amountToTransfer = _totalAsset.toAmount(_shares, true);

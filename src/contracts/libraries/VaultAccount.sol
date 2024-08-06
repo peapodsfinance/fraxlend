@@ -13,12 +13,12 @@ struct VaultAccount {
 /// @notice Provides a library for use with the VaultAccount struct, provides convenient math implementations
 /// @dev Uses uint128 to save on storage
 library VaultAccountingLibrary {
-  function totalAmount(VaultAccount memory total, address vault) internal view returns (uint256 amount) {
-    if (vault == address(0)) {
-      return total.amount;
+    function totalAmount(VaultAccount memory total, address vault) internal view returns (uint256 amount) {
+        if (vault == address(0)) {
+          return total.amount;
+        }
+        return total.amount + IERC4626Extended(vault).totalAvailableAssets();
     }
-    return total.amount + IERC4626Extended(vault).totalAvailableAssets();
-  }
 
     /// @notice Calculates the shares value in relationship to `amount` and `total`
     /// @dev Given an amount, return the appropriate number of shares

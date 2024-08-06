@@ -392,8 +392,8 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
                 _results.interestEarned + _results.totalAsset.totalAmount(address(externalAssetVault)) <= type(uint128).max
             ) {
                 // Increment totalBorrow and totalAsset by interestEarned
-                _results.totalBorrow.amount += uint128(_results.interestEarned);
-                _results.totalAsset.amount += uint128(_results.interestEarned);
+                _results.totalBorrow.amount += _results.interestEarned.toUint128();
+                _results.totalAsset.amount += _results.interestEarned.toUint128();
                 if (_currentRateInfo.feeToProtocolRate > 0) {
                     _results.feesAmount =
                         (_results.interestEarned * _currentRateInfo.feeToProtocolRate) /
@@ -405,7 +405,7 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
 
                     // Effects: Give new shares to this contract, effectively diluting lenders an amount equal to the fees
                     // We can safely cast because _feesShare < _feesAmount < interestEarned which is always less than uint128
-                    _results.totalAsset.shares += uint128(_results.feesShare);
+                    _results.totalAsset.shares += _results.feesShare.toUint128();
                 }
             }
         }
@@ -608,8 +608,8 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         // Calculate the number of fTokens to mint
         _sharesReceived = _totalAsset.toShares(_amount, false);
 
-        // Deposit assets from vault
-        externalAssetVault.pairWithdraw(_amount);
+        // Deposit assets from external vault here
+        externalAssetVault.whitelistWithdraw(_amount);
 
         // Execute the deposit effects
         _deposit(_totalAsset, _amount.toUint128(), _sharesReceived.toUint128(), address(externalAssetVault), false);
@@ -628,7 +628,7 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         // Calculate the number of assets to transfer based on the shares to burn
         _amountToReturn = _totalAsset.toAmount(_shares, false);
 
-        // Execute the withdraw effects
+        // Execute the withdraw effects for vault
         _redeem(_totalAsset, _amountToReturn.toUint128(), _shares.toUint128(), address(externalAssetVault), address(externalAssetVault));
     }
 
@@ -812,7 +812,6 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         if (_localAssetsAvailable < _borrowAmount) {
             uint256 _externalAmt = _borrowAmount - _localAssetsAvailable; 
             externalAssetsUsed += _externalAmt;
-            externalAssetVault.pairWithdraw(_externalAmt);
             _depositFromVault(_externalAmt);
         }
 
@@ -821,7 +820,7 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
 
         // Effects: Bookkeeping to add shares & amounts to total Borrow accounting
         _totalBorrow.amount += _borrowAmount;
-        _totalBorrow.shares += uint128(_sharesAdded);
+        _totalBorrow.shares += _sharesAdded.toUint128();
         // NOTE: we can safely cast here because shares are always less than amount and _borrowAmount is uint128
 
         // Effects: write back to storage
