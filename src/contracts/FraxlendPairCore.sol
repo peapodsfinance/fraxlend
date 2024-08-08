@@ -608,7 +608,7 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         // Calculate the number of fTokens to mint
         _sharesReceived = _totalAsset.toShares(_amount, false);
 
-        // Deposit assets from external vault here
+        // Withdraw assets from external vault here
         externalAssetVault.whitelistWithdraw(_amount);
 
         // Execute the deposit effects
@@ -629,7 +629,12 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         _amountToReturn = _totalAsset.toAmount(_shares, false);
 
         // Execute the withdraw effects for vault
-        _redeem(_totalAsset, _amountToReturn.toUint128(), _shares.toUint128(), address(externalAssetVault), address(externalAssetVault));
+        // receive assets here in order to call whitelistDeposit and handle accounting in external vault
+        _redeem(_totalAsset, _amountToReturn.toUint128(), _shares.toUint128(), address(this), address(externalAssetVault));
+
+        // Deposit assets to external vault
+        assetContract.approve(address(externalAssetVault), _amountToReturn);
+        externalAssetVault.whitelistDeposit(_amountToReturn);
     }
 
     function previewMint(uint256 _shares) external view returns (uint256 _amount) {
