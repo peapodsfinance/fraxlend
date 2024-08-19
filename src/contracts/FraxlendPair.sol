@@ -260,7 +260,7 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
         uint256 _ownerBalance = _owner == address(this) ? balanceOf(_owner) + _feesShare : balanceOf(_owner);
 
         // Return the lower of total assets in contract or total assets available to _owner
-        uint256 _totalAssetsAvailable = _totalAssetAvailable(_totalAsset, _totalBorrow, false);
+        uint256 _totalAssetsAvailable = _totalAssetAvailable(_totalAsset, _totalBorrow, true);
         uint256 _totalUserWithdraw = _totalAsset.toAmount(_ownerBalance, false);
         _maxAssets = _totalAssetsAvailable < _totalUserWithdraw ? _totalAssetsAvailable : _totalUserWithdraw;
     }
@@ -277,7 +277,7 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
         ) = previewAddInterest();
 
         // Calculate the total shares available
-        uint256 _totalAssetsAvailable = _totalAssetAvailable(_totalAsset, _totalBorrow, false);
+        uint256 _totalAssetsAvailable = _totalAssetAvailable(_totalAsset, _totalBorrow, true);
         uint256 _totalSharesAvailable = _totalAsset.toShares(_totalAssetsAvailable, false);
 
         // Get the owner balance and include the fees share if owner is this contract

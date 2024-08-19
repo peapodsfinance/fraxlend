@@ -25,7 +25,8 @@ async function main() {
     ['address', 'address', 'address', 'uint32', 'address', 'uint64', 'uint256', 'uint256', 'uint256'],
     [
       '0xaf88d065e77c8cC2239327C5EDb3A432268e5831', // Arbitrum USDC
-      '0x21a4F940E58271a733ecF2A262fDf62cd10a1132', // Arbitrum apPEASUSDC
+      // '0x21a4F940E58271a733ecF2A262fDf62cd10a1132', // Arbitrum apPEASUSDC
+      '0x83d3933364dd311055009614B68698315C7Ac2de', // Arbitrum test aspPEASUSDC (zAPP)
       // '0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419', // mainnet
       '0x0aeD34a4D48F7a55c9E029dCD63a2429b523cF26', // Arbitrum apPEASUSDC
       '5000',
@@ -33,7 +34,7 @@ async function main() {
       '0x31CA9b1779e0BFAf3F5005ac4Bf2Bd74DCB8c8cE', // Arbitrum
       '90000',
       // '50000', // 50% LTV
-      '0', // noop LTV, allow any LTV
+      '0', // noop maxLTV, allow any LTV
       '10000',
       '1000',
     ],
@@ -47,7 +48,7 @@ async function main() {
     [
       '0x93beE8C5f71c256F3eaE8Cdc33aA1f57711E6F38',
       '0x93beE8C5f71c256F3eaE8Cdc33aA1f57711E6F38',
-      '0x0000000000000000000000000000000000000000',
+      '0x93beE8C5f71c256F3eaE8Cdc33aA1f57711E6F38',
     ],
   );
 

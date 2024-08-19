@@ -615,18 +615,18 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         _deposit(_totalAsset, _amount.toUint128(), _sharesReceived.toUint128(), address(externalAssetVault), false);
     }
 
-    /// @notice The ```redeem``` function allows the caller to redeem their Asset Shares for Asset Tokens
-    /// @param _shares The number of Asset Shares (fTokens) to burn for Asset Tokens
-    /// @return _amountToReturn The amount of Asset Tokens to be transferred
-    function _redeemToVault(uint256 _shares) internal returns (uint256 _amountToReturn) {
+    /// @notice The ```_withdrawToVault``` function withdraws assets back to an external vault if previously used
+    /// @param _amountToReturn The amount of Asset Tokens to be transferred to the vault
+    /// @return _shares The number of Asset Shares (fTokens) to burn for Asset Tokens
+    function _withdrawToVault(uint256 _amountToReturn) internal returns (uint256 _shares) {
         // Accrue interest if necessary
         _addInterest();
 
         // Pull from storage to save gas
         VaultAccount memory _totalAsset = totalAsset;
 
-        // Calculate the number of assets to transfer based on the shares to burn
-        _amountToReturn = _totalAsset.toAmount(_shares, false);
+        // Calculate the number of shares to burn based on the assets to transfer
+        _shares = _totalAsset.toShares(_amountToReturn, true);
 
         // Execute the withdraw effects for vault
         // receive assets here in order to call whitelistDeposit and handle accounting in external vault
@@ -701,11 +701,15 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         if (_totAssetsAvailable < _amountToReturn) {
             revert InsufficientAssetsInContract(_totAssetsAvailable, _amountToReturn);
         }
-        uint256 _localAssetsAvailable= _totalAssetAvailable(_totalAsset, totalBorrow, false);
-        if (_localAssetsAvailable < _amountToReturn) {
-            uint256 _vaultAmt = _amountToReturn - _localAssetsAvailable;
-            externalAssetsUsed += _vaultAmt;
-            _depositFromVault(_vaultAmt);
+
+        // If we're redeeming back to the vault, don't deposit from the vault
+        if (_owner != address(externalAssetVault)) {
+            uint256 _localAssetsAvailable= _totalAssetAvailable(_totalAsset, totalBorrow, false);
+            if (_localAssetsAvailable < _amountToReturn) {
+                uint256 _vaultAmt = _amountToReturn - _localAssetsAvailable;
+                externalAssetsUsed += _vaultAmt;
+                _depositFromVault(_vaultAmt);
+            }
         }
 
         // Effects: bookkeeping
@@ -994,7 +998,7 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         if (externalAssetsUsed > 0) {
             uint256 _extAmount = externalAssetsUsed > _amountToRepay ? _amountToRepay : externalAssetsUsed;
             externalAssetsUsed -= _extAmount;
-            _redeemToVault(_extAmount);
+            _withdrawToVault(_extAmount);
         }
         emit RepayAsset(_payer, _borrower, _amountToRepay, _shares);
     }
