@@ -285,7 +285,7 @@ _Caller must invoke ```ERC20.approve``` on the Asset Token contract prior to cal
 ## _redeem
 
 ```solidity
-function _redeem(struct VaultAccount _totalAsset, uint128 _amountToReturn, uint128 _shares, address _receiver, address _owner) internal
+function _redeem(struct VaultAccount _totalAsset, uint128 _amountToReturn, uint128 _shares, address _receiver, address _owner, bool _skipAllowanceCheck) internal
 ```
 
 The ```_redeem``` function is an internal implementation which allows a Lender to pull their Asset Tokens out of the Pair
@@ -299,6 +299,7 @@ _Caller must invoke ```ERC20.approve``` on the Asset Token contract prior to cal
 | _shares | uint128 | The number of Asset Shares (fTokens) to burn |
 | _receiver | address | The address to which the Asset Tokens will be transferred |
 | _owner | address | The owner of the Asset Shares (fTokens) |
+| _skipAllowanceCheck | bool | Whether to skip the allowance check |
 
 ## redeem
 

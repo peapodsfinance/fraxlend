@@ -401,7 +401,7 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
 
                     _results.feesShare =
                         (_results.feesAmount * _results.totalAsset.shares) /
-                        (_results.totalAsset.totalAmount(address(externalAssetVault)) - _results.feesAmount);
+                        (_results.totalAsset.totalAmount(address(0)) - _results.feesAmount);
 
                     // Effects: Give new shares to this contract, effectively diluting lenders an amount equal to the fees
                     // We can safely cast because _feesShare < _feesAmount < interestEarned which is always less than uint128
@@ -603,7 +603,7 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         VaultAccount memory _totalAsset = totalAsset;
 
         // Check if this deposit will violate the deposit limit
-        if (depositLimit < _totalAsset.totalAmount(address(externalAssetVault)) + _amount) revert ExceedsDepositLimit();
+        if (depositLimit < _totalAsset.totalAmount(address(externalAssetVault))) revert ExceedsDepositLimit();
 
         // Calculate the number of fTokens to mint
         _sharesReceived = _totalAsset.toShares(_amount, false);
@@ -630,7 +630,7 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
 
         // Execute the withdraw effects for vault
         // receive assets here in order to call whitelistDeposit and handle accounting in external vault
-        _redeem(_totalAsset, _amountToReturn.toUint128(), _shares.toUint128(), address(this), address(externalAssetVault));
+        _redeem(_totalAsset, _amountToReturn.toUint128(), _shares.toUint128(), address(this), address(externalAssetVault), true);
 
         // Deposit assets to external vault
         assetContract.approve(address(externalAssetVault), _amountToReturn);
@@ -687,10 +687,11 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         uint128 _amountToReturn,
         uint128 _shares,
         address _receiver,
-        address _owner
+        address _owner,
+        bool _skipAllowanceCheck
     ) internal {
         // Check for sufficient allowance/approval if necessary
-        if (msg.sender != _owner) {
+        if (msg.sender != _owner && !_skipAllowanceCheck) {
             uint256 allowed = allowance(_owner, msg.sender);
             // NOTE: This will revert on underflow ensuring that allowance > shares
             if (allowed != type(uint256).max) _approve(_owner, msg.sender, allowed - _shares);
@@ -709,6 +710,9 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
                 uint256 _vaultAmt = _amountToReturn - _localAssetsAvailable;
                 externalAssetsUsed += _vaultAmt;
                 _depositFromVault(_vaultAmt);
+
+                // Rewrite to memory, now it's the latest value!
+                _totalAsset = totalAsset;
             }
         }
 
@@ -755,7 +759,7 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         _amountToReturn = _totalAsset.toAmount(_shares, false);
 
         // Execute the withdraw effects
-        _redeem(_totalAsset, _amountToReturn.toUint128(), _shares.toUint128(), _receiver, _owner);
+        _redeem(_totalAsset, _amountToReturn.toUint128(), _shares.toUint128(), _receiver, _owner, false);
     }
 
     /// @notice The ```previewWithdraw``` function returns the number of Asset Shares (fTokens) that would be burned for a given amount of Asset Tokens
@@ -791,7 +795,7 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         _sharesToBurn = _totalAsset.toShares(_amount, true);
 
         // Execute the withdraw effects
-        _redeem(_totalAsset, _amount.toUint128(), _sharesToBurn.toUint128(), _receiver, _owner);
+        _redeem(_totalAsset, _amount.toUint128(), _sharesToBurn.toUint128(), _receiver, _owner, false);
     }
 
     // ============================================================================================

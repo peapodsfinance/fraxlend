@@ -474,7 +474,7 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
         _amountToTransfer = _totalAsset.toAmount(_shares, true);
 
         _approve(address(this), msg.sender, _shares);
-        _redeem(_totalAsset, _amountToTransfer.toUint128(), _shares, _recipient, address(this));
+        _redeem(_totalAsset, _amountToTransfer.toUint128(), _shares, _recipient, address(this), false);
         uint256 _collateralAmount = userCollateralBalance[address(this)];
         _removeCollateral(_collateralAmount, _recipient, address(this));
         emit WithdrawFees(_shares, _recipient, _amountToTransfer, _collateralAmount);
