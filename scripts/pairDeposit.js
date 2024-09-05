@@ -26,7 +26,7 @@ async function main() {
   console.log('USDC approved!');
 
   const pair = await ethers.getContractAt('FraxlendPair', pairCa);
-  await pair.deposit(new BigNumber('0.01').times(new BigNumber(10).pow(await usdc.decimals())).toFixed(0), deployer.address, {
+  await pair.deposit(new BigNumber('1').times(new BigNumber(10).pow(await usdc.decimals())).toFixed(0), deployer.address, {
     nonce: nonceCounter.increment(),
   });
   console.log('Script complete!');

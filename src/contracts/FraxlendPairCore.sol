@@ -370,10 +370,13 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
             // Time elapsed since last interest update
             uint256 _deltaTime = block.timestamp - _currentRateInfo.lastTimestamp;
 
+            // Total assets available including what resides in the external vault
+            uint256 _totalAssetsAvailable = _results.totalAsset.totalAmount(address(externalAssetVault));
+
             // Get the utilization rate
-            uint256 _utilizationRate = _results.totalAsset.totalAmount(address(externalAssetVault)) == 0
+            uint256 _utilizationRate = _totalAssetsAvailable == 0
                 ? 0
-                : (UTIL_PREC * _results.totalBorrow.amount) / _results.totalAsset.totalAmount(address(externalAssetVault));
+                : (UTIL_PREC * _results.totalBorrow.amount) / _totalAssetsAvailable;
 
             // Request new interest rate and full utilization rate from the rate calculator
             (_results.newRate, _results.newFullUtilizationRate) = IRateCalculatorV2(rateContract).getNewRate(
@@ -389,7 +392,7 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
             if (
                 _results.interestEarned > 0 &&
                 _results.interestEarned + _results.totalBorrow.amount <= type(uint128).max &&
-                _results.interestEarned + _results.totalAsset.totalAmount(address(externalAssetVault)) <= type(uint128).max
+                _results.interestEarned + _totalAssetsAvailable <= type(uint128).max
             ) {
                 // Increment totalBorrow and totalAsset by interestEarned
                 _results.totalBorrow.amount += _results.interestEarned.toUint128();
@@ -409,6 +412,13 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
                 }
             }
         }
+    }
+
+    /// @notice The ```externalAddInterest``` function allows the external asset vault to update interest based on
+    /// @notice changes in the assets available in the vault.
+    function externalAddInterest() external {
+        if (msg.sender != address(externalAssetVault)) revert ExternalAssetVaultOnly();
+        _addInterest();
     }
 
     /// @notice The ```_addInterest``` function is invoked prior to every external function and is used to accrue interest and update interest rate

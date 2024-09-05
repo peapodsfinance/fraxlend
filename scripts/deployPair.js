@@ -26,7 +26,8 @@ async function main() {
     [
       '0xaf88d065e77c8cC2239327C5EDb3A432268e5831', // Arbitrum USDC
       // '0x21a4F940E58271a733ecF2A262fDf62cd10a1132', // Arbitrum apPEASUSDC
-      '0x83d3933364dd311055009614B68698315C7Ac2de', // Arbitrum test aspPEASUSDC (zAPP)
+      // '0x83d3933364dd311055009614B68698315C7Ac2de', // Arbitrum test aspPEASUSDC (zAPP)
+      '0x3F276c52A416dBb5Ec1554d9e9Ff6E65cFB7be2b', // self lending Arbitrum test aspPEASUSDC (zAPP, salt: 0)
       // '0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419', // mainnet
       '0x0aeD34a4D48F7a55c9E029dCD63a2429b523cF26', // Arbitrum apPEASUSDC
       '5000',
