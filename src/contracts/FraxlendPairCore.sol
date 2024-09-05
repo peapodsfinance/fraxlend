@@ -414,13 +414,6 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         }
     }
 
-    /// @notice The ```externalAddInterest``` function allows the external asset vault to update interest based on
-    /// @notice changes in the assets available in the vault.
-    function externalAddInterest() external {
-        if (msg.sender != address(externalAssetVault)) revert ExternalAssetVaultOnly();
-        _addInterest();
-    }
-
     /// @notice The ```_addInterest``` function is invoked prior to every external function and is used to accrue interest and update interest rate
     /// @dev Can only called once per block
     /// @return _isInterestUpdated True if interest was calculated
