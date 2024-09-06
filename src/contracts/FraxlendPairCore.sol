@@ -1003,7 +1003,7 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
             assetContract.safeTransferFrom(_payer, address(this), _amountToRepay);
         }
         externalAssetVault.whitelistUpdate();
-        uint256 _externalAssetsToWithdraw = externalAssetVault.totalAssetsUtilized();
+        uint256 _externalAssetsToWithdraw = externalAssetVault.vaultUtilization(address(this));
         if (_externalAssetsToWithdraw > 0) {
             uint256 _extAmount = _externalAssetsToWithdraw > _amountToRepay ? _amountToRepay : _externalAssetsToWithdraw;
             _withdrawToVault(_extAmount);
