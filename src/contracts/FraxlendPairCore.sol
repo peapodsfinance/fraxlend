@@ -118,7 +118,6 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
     VaultAccount public totalAsset; // amount = total amount of assets, shares = total shares outstanding
     VaultAccount public totalBorrow; // amount = total borrow amount with interest accrued, shares = total shares outstanding
     uint256 public totalCollateral; // total amount of collateral in contract
-    uint256 public externalAssetsUsed; // total amount of external assets used if an external vault is set
 
     // User Level Accounting
     /// @notice Stores the balance of collateral for each user
@@ -598,6 +597,9 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         _deposit(_totalAsset, _amount.toUint128(), _sharesReceived.toUint128(), _receiver, true);
     }
 
+    /// @notice The ```_depositFromVault``` function deposits assets here from the configured external vault if available
+    /// @param _amount The amount of Asset Tokens to be transferred from the vault
+    /// @return _sharesReceived The number of Asset Shares (fTokens) to mint for Asset Tokens
     function _depositFromVault(uint256 _amount) internal returns (uint256 _sharesReceived) {
         // Accrue interest if necessary
         _addInterest();
@@ -711,7 +713,6 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
             uint256 _localAssetsAvailable= _totalAssetAvailable(_totalAsset, totalBorrow, false);
             if (_localAssetsAvailable < _amountToReturn) {
                 uint256 _vaultAmt = _amountToReturn - _localAssetsAvailable;
-                externalAssetsUsed += _vaultAmt;
                 _depositFromVault(_vaultAmt);
 
                 // Rewrite to memory, now it's the latest value!
@@ -832,8 +833,7 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         }
         uint256 _localAssetsAvailable = _totalAssetAvailable(totalAsset, _totalBorrow, false);
         if (_localAssetsAvailable < _borrowAmount) {
-            uint256 _externalAmt = _borrowAmount - _localAssetsAvailable; 
-            externalAssetsUsed += _externalAmt;
+            uint256 _externalAmt = _borrowAmount - _localAssetsAvailable;
             _depositFromVault(_externalAmt);
         }
 
@@ -1002,9 +1002,10 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         if (_payer != address(this)) {
             assetContract.safeTransferFrom(_payer, address(this), _amountToRepay);
         }
-        if (externalAssetsUsed > 0) {
-            uint256 _extAmount = externalAssetsUsed > _amountToRepay ? _amountToRepay : externalAssetsUsed;
-            externalAssetsUsed -= _extAmount;
+        uint256 _externalVaultShares = balanceOf(address(externalAssetVault));
+        uint256 _externalAssetsToRedeem = _totalBorrow.toAmount(_externalVaultShares, true);
+        if (_externalAssetsToRedeem > 0) {
+            uint256 _extAmount = _externalAssetsToRedeem > _amountToRepay ? _amountToRepay : _externalAssetsToRedeem;
             _withdrawToVault(_extAmount);
         }
         emit RepayAsset(_payer, _borrower, _amountToRepay, _shares);

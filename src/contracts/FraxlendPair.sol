@@ -235,12 +235,12 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
         return _totalAsset.totalAmount(address(externalAssetVault));
     }
 
-    function maxDeposit(address _receiver) public view returns (uint256 _maxAssets) {
+    function maxDeposit(address) public view returns (uint256 _maxAssets) {
         (, , , , VaultAccount memory _totalAsset, ) = previewAddInterest();
         _maxAssets = _totalAsset.totalAmount(address(externalAssetVault)) >= depositLimit ? 0 : depositLimit - _totalAsset.totalAmount(address(externalAssetVault));
     }
 
-    function maxMint(address _receiver) external view returns (uint256 _maxShares) {
+    function maxMint(address) external view returns (uint256 _maxShares) {
         (, , , , VaultAccount memory _totalAsset, ) = previewAddInterest();
         uint256 _maxDeposit = _totalAsset.totalAmount(address(externalAssetVault)) >= depositLimit ? 0 : depositLimit - _totalAsset.totalAmount(address(externalAssetVault));
         _maxShares = _totalAsset.toShares(_maxDeposit, false);
