@@ -633,13 +633,13 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         // Calculate the number of shares to burn based on the assets to transfer
         _shares = _totalAsset.toShares(_amountToReturn, true);
 
-        // Execute the withdraw effects for vault
-        // receive assets here in order to call whitelistDeposit and handle accounting in external vault
-        _redeem(_totalAsset, _amountToReturn.toUint128(), _shares.toUint128(), address(this), address(externalAssetVault), true);
-
         // Deposit assets to external vault
         assetContract.approve(address(externalAssetVault), _amountToReturn);
         externalAssetVault.whitelistDeposit(_amountToReturn);
+
+        // Execute the withdraw effects for vault
+        // receive assets here in order to call whitelistDeposit and handle accounting in external vault
+        _redeem(_totalAsset, _amountToReturn.toUint128(), _shares.toUint128(), address(this), address(externalAssetVault), true);
     }
 
     function previewMint(uint256 _shares) external view returns (uint256 _amount) {
@@ -729,7 +729,9 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         _burn(_owner, _shares);
 
         // Interactions
-        assetContract.safeTransfer(_receiver, _amountToReturn);
+        if (_receiver != address(this)) {
+            assetContract.safeTransfer(_receiver, _amountToReturn);
+        }
         emit Withdraw(msg.sender, _receiver, _owner, _amountToReturn, _shares);
     }
 
