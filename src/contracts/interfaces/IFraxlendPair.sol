@@ -14,7 +14,7 @@ interface IFraxlendPair {
 
     function addCollateral(uint256 _collateralAmount, address _borrower) external;
 
-    function addInterest()
+    function addInterest(bool _returnAccounting)
         external
         returns (uint256 _interestEarned, uint256 _feesAmount, uint256 _feesShare, uint64 _newRate);
 
@@ -175,6 +175,7 @@ interface IFraxlendPair {
         address _swapperAddress,
         uint256 _collateralToSwap,
         uint256 _amountAssetOutMin,
+        uint256 _swapDeadline,
         address[] memory _path
     ) external returns (uint256 _amountAssetOut);
 

@@ -139,7 +139,7 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
         )
     {
         (, , , , VaultAccount memory _totalAsset, VaultAccount memory _totalBorrow) = previewAddInterest();
-        _totalAssetAmount = _totalAsset.totalAmount(address(externalAssetVault)).toUint128();
+        _totalAssetAmount = _totalAsset.totalAmount(address(address(0))).toUint128();
         _totalAssetShares = _totalAsset.shares;
         _totalBorrowAmount = _totalBorrow.amount;
         _totalBorrowShares = _totalBorrow.shares;
@@ -237,12 +237,12 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
 
     function maxDeposit(address) public view returns (uint256 _maxAssets) {
         (, , , , VaultAccount memory _totalAsset, ) = previewAddInterest();
-        _maxAssets = _totalAsset.totalAmount(address(externalAssetVault)) >= depositLimit ? 0 : depositLimit - _totalAsset.totalAmount(address(externalAssetVault));
+        _maxAssets = _totalAsset.totalAmount(address(0)) >= depositLimit ? 0 : depositLimit - _totalAsset.totalAmount(address(0));
     }
 
     function maxMint(address) external view returns (uint256 _maxShares) {
         (, , , , VaultAccount memory _totalAsset, ) = previewAddInterest();
-        uint256 _maxDeposit = _totalAsset.totalAmount(address(externalAssetVault)) >= depositLimit ? 0 : depositLimit - _totalAsset.totalAmount(address(externalAssetVault));
+        uint256 _maxDeposit = _totalAsset.totalAmount(address(0)) >= depositLimit ? 0 : depositLimit - _totalAsset.totalAmount(address(0));
         _maxShares = _totalAsset.toShares(_maxDeposit, false);
     }
 
@@ -526,121 +526,121 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
         }
     }
 
-    /// @notice The ```pauseBorrow``` function sets borrow limit to 0
-    function pauseBorrow() external {
-        _requireProtocolOrOwner();
-        if (isBorrowAccessControlRevoked) revert AccessControlRevoked();
-        _setBorrowLimit(0);
-    }
+    // /// @notice The ```pauseBorrow``` function sets borrow limit to 0
+    // function pauseBorrow() external {
+    //     _requireProtocolOrOwner();
+    //     if (isBorrowAccessControlRevoked) revert AccessControlRevoked();
+    //     _setBorrowLimit(0);
+    // }
 
-    /// @notice The ```setBorrowLimit``` function sets the borrow limit
-    /// @param _limit The new borrow limit
-    function setBorrowLimit(uint256 _limit) external {
-        _requireTimelockOrOwner();
-        if (isBorrowAccessControlRevoked) revert AccessControlRevoked();
-        _setBorrowLimit(_limit);
-    }
+    // /// @notice The ```setBorrowLimit``` function sets the borrow limit
+    // /// @param _limit The new borrow limit
+    // function setBorrowLimit(uint256 _limit) external {
+    //     _requireTimelockOrOwner();
+    //     if (isBorrowAccessControlRevoked) revert AccessControlRevoked();
+    //     _setBorrowLimit(_limit);
+    // }
 
-    /// @notice The ```revokeBorrowLimitAccessControl``` function revokes borrow limit access control
-    /// @param _borrowLimit The new borrow limit
-    function revokeBorrowLimitAccessControl(uint256 _borrowLimit) external {
-        _requireTimelock();
-        _revokeBorrowAccessControl(_borrowLimit);
-    }
+    // /// @notice The ```revokeBorrowLimitAccessControl``` function revokes borrow limit access control
+    // /// @param _borrowLimit The new borrow limit
+    // function revokeBorrowLimitAccessControl(uint256 _borrowLimit) external {
+    //     _requireTimelock();
+    //     _revokeBorrowAccessControl(_borrowLimit);
+    // }
 
-    /// @notice The ```pauseDeposit``` function pauses deposit functionality
-    function pauseDeposit() external {
-        _requireProtocolOrOwner();
-        if (isDepositAccessControlRevoked) revert AccessControlRevoked();
-        _setDepositLimit(0);
-    }
+    // /// @notice The ```pauseDeposit``` function pauses deposit functionality
+    // function pauseDeposit() external {
+    //     _requireProtocolOrOwner();
+    //     if (isDepositAccessControlRevoked) revert AccessControlRevoked();
+    //     _setDepositLimit(0);
+    // }
 
-    /// @notice The ```setDepositLimit``` function sets the deposit limit
-    /// @param _limit The new deposit limit
-    function setDepositLimit(uint256 _limit) external {
-        _requireTimelockOrOwner();
-        if (isDepositAccessControlRevoked) revert AccessControlRevoked();
-        _setDepositLimit(_limit);
-    }
+    // /// @notice The ```setDepositLimit``` function sets the deposit limit
+    // /// @param _limit The new deposit limit
+    // function setDepositLimit(uint256 _limit) external {
+    //     _requireTimelockOrOwner();
+    //     if (isDepositAccessControlRevoked) revert AccessControlRevoked();
+    //     _setDepositLimit(_limit);
+    // }
 
-    /// @notice The ```revokeDepositLimitAccessControl``` function revokes deposit limit access control
-    /// @param _depositLimit The new deposit limit
-    function revokeDepositLimitAccessControl(uint256 _depositLimit) external {
-        _requireTimelock();
-        _revokeDepositAccessControl(_depositLimit);
-    }
+    // /// @notice The ```revokeDepositLimitAccessControl``` function revokes deposit limit access control
+    // /// @param _depositLimit The new deposit limit
+    // function revokeDepositLimitAccessControl(uint256 _depositLimit) external {
+    //     _requireTimelock();
+    //     _revokeDepositAccessControl(_depositLimit);
+    // }
 
-    /// @notice The ```pauseRepay``` function pauses repay functionality
-    /// @param _isPaused The new pause state
-    function pauseRepay(bool _isPaused) external {
-        if (_isPaused) {
-            _requireProtocolOrOwner();
-        } else {
-            _requireTimelockOrOwner();
-        }
-        if (isRepayAccessControlRevoked) revert AccessControlRevoked();
-        _pauseRepay(_isPaused);
-    }
+    // /// @notice The ```pauseRepay``` function pauses repay functionality
+    // /// @param _isPaused The new pause state
+    // function pauseRepay(bool _isPaused) external {
+    //     if (_isPaused) {
+    //         _requireProtocolOrOwner();
+    //     } else {
+    //         _requireTimelockOrOwner();
+    //     }
+    //     if (isRepayAccessControlRevoked) revert AccessControlRevoked();
+    //     _pauseRepay(_isPaused);
+    // }
 
-    /// @notice The ```revokeRepayAccessControl``` function revokes repay access control
-    function revokeRepayAccessControl() external {
-        _requireTimelock();
-        _revokeRepayAccessControl();
-    }
+    // /// @notice The ```revokeRepayAccessControl``` function revokes repay access control
+    // function revokeRepayAccessControl() external {
+    //     _requireTimelock();
+    //     _revokeRepayAccessControl();
+    // }
 
-    /// @notice The ```pauseWithdraw``` function pauses withdraw functionality
-    /// @param _isPaused The new pause state
-    function pauseWithdraw(bool _isPaused) external {
-        if (_isPaused) {
-            _requireProtocolOrOwner();
-        } else {
-            _requireTimelockOrOwner();
-        }
-        if (isWithdrawAccessControlRevoked) revert AccessControlRevoked();
-        _pauseWithdraw(_isPaused);
-    }
+    // /// @notice The ```pauseWithdraw``` function pauses withdraw functionality
+    // /// @param _isPaused The new pause state
+    // function pauseWithdraw(bool _isPaused) external {
+    //     if (_isPaused) {
+    //         _requireProtocolOrOwner();
+    //     } else {
+    //         _requireTimelockOrOwner();
+    //     }
+    //     if (isWithdrawAccessControlRevoked) revert AccessControlRevoked();
+    //     _pauseWithdraw(_isPaused);
+    // }
 
-    /// @notice The ```revokeWithdrawAccessControl``` function revokes withdraw access control
-    function revokeWithdrawAccessControl() external {
-        _requireTimelock();
-        _revokeWithdrawAccessControl();
-    }
+    // /// @notice The ```revokeWithdrawAccessControl``` function revokes withdraw access control
+    // function revokeWithdrawAccessControl() external {
+    //     _requireTimelock();
+    //     _revokeWithdrawAccessControl();
+    // }
 
-    /// @notice The ```pauseLiquidate``` function pauses liquidate functionality
-    /// @param _isPaused The new pause state
-    function pauseLiquidate(bool _isPaused) external {
-        if (_isPaused) {
-            _requireProtocolOrOwner();
-        } else {
-            _requireTimelockOrOwner();
-        }
-        if (isLiquidateAccessControlRevoked) revert AccessControlRevoked();
-        _pauseLiquidate(_isPaused);
-    }
+    // /// @notice The ```pauseLiquidate``` function pauses liquidate functionality
+    // /// @param _isPaused The new pause state
+    // function pauseLiquidate(bool _isPaused) external {
+    //     if (_isPaused) {
+    //         _requireProtocolOrOwner();
+    //     } else {
+    //         _requireTimelockOrOwner();
+    //     }
+    //     if (isLiquidateAccessControlRevoked) revert AccessControlRevoked();
+    //     _pauseLiquidate(_isPaused);
+    // }
 
-    /// @notice The ```revokeLiquidateAccessControl``` function revokes liquidate access control
-    function revokeLiquidateAccessControl() external {
-        _requireTimelock();
-        _revokeLiquidateAccessControl();
-    }
+    // /// @notice The ```revokeLiquidateAccessControl``` function revokes liquidate access control
+    // function revokeLiquidateAccessControl() external {
+    //     _requireTimelock();
+    //     _revokeLiquidateAccessControl();
+    // }
 
-    /// @notice The ```pauseInterest``` function pauses interest functionality
-    /// @param _isPaused The new pause state
-    function pauseInterest(bool _isPaused) external {
-        if (_isPaused) {
-            _requireProtocolOrOwner();
-        } else {
-            _requireTimelockOrOwner();
-        }
-        if (isInterestAccessControlRevoked) revert AccessControlRevoked();
-        // Resets the lastTimestamp which has the effect of no interest accruing over the pause period
-        _addInterest();
-        _pauseInterest(_isPaused);
-    }
+    // /// @notice The ```pauseInterest``` function pauses interest functionality
+    // /// @param _isPaused The new pause state
+    // function pauseInterest(bool _isPaused) external {
+    //     if (_isPaused) {
+    //         _requireProtocolOrOwner();
+    //     } else {
+    //         _requireTimelockOrOwner();
+    //     }
+    //     if (isInterestAccessControlRevoked) revert AccessControlRevoked();
+    //     // Resets the lastTimestamp which has the effect of no interest accruing over the pause period
+    //     _addInterest();
+    //     _pauseInterest(_isPaused);
+    // }
 
-    /// @notice The ```revokeInterestAccessControl``` function revokes interest access control
-    function revokeInterestAccessControl() external {
-        _requireTimelock();
-        _revokeInterestAccessControl();
-    }
+    // /// @notice The ```revokeInterestAccessControl``` function revokes interest access control
+    // function revokeInterestAccessControl() external {
+    //     _requireTimelock();
+    //     _revokeInterestAccessControl();
+    // }
 }

@@ -241,11 +241,11 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         _;
         ExchangeRateInfo memory _exchangeRateInfo = exchangeRateInfo;
 
-        if (!_isSolvent(_borrower, exchangeRateInfo.highExchangeRate)) {
+        if (!_isSolvent(_borrower, _exchangeRateInfo.highExchangeRate)) {
             revert Insolvent(
                 totalBorrow.toAmount(userBorrowShares[_borrower], true),
                 userCollateralBalance[_borrower],
-                exchangeRateInfo.highExchangeRate
+                _exchangeRateInfo.highExchangeRate
             );
         }
     }
@@ -588,7 +588,7 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         VaultAccount memory _totalAsset = totalAsset;
 
         // Check if this deposit will violate the deposit limit
-        if (depositLimit < _totalAsset.totalAmount(address(externalAssetVault)) + _amount) revert ExceedsDepositLimit();
+        if (depositLimit < _totalAsset.totalAmount(address(0)) + _amount) revert ExceedsDepositLimit();
 
         // Calculate the number of fTokens to mint
         _sharesReceived = _totalAsset.toShares(_amount, false);
@@ -606,9 +606,6 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
 
         // Pull from storage to save gas
         VaultAccount memory _totalAsset = totalAsset;
-
-        // Check if this deposit will violate the deposit limit
-        if (depositLimit < _totalAsset.totalAmount(address(externalAssetVault))) revert ExceedsDepositLimit();
 
         // Calculate the number of fTokens to mint
         _sharesReceived = _totalAsset.toShares(_amount, false);
@@ -632,6 +629,8 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
 
         // Calculate the number of shares to burn based on the assets to transfer
         _shares = _totalAsset.toShares(_amountToReturn, true);
+        uint256 _vaultBal = balanceOf(address(externalAssetVault));
+        _shares = _vaultBal < _shares ? _vaultBal : _shares;
 
         // Deposit assets to external vault
         assetContract.approve(address(externalAssetVault), _amountToReturn);
@@ -657,10 +656,10 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         VaultAccount memory _totalAsset = totalAsset;
 
         // Calculate the number of assets to transfer based on the shares to mint
-        _amount = _totalAsset.toAmount(_shares, false);
+        _amount = _totalAsset.toAmount(_shares, true);
 
         // Check if this deposit will violate the deposit limit
-        if (depositLimit < _totalAsset.totalAmount(address(externalAssetVault)) + _amount) revert ExceedsDepositLimit();
+        if (depositLimit < _totalAsset.totalAmount(address(0)) + _amount) revert ExceedsDepositLimit();
 
         // Execute the deposit effects
         _deposit(_totalAsset, _amount.toUint128(), _shares.toUint128(), _receiver, true);
@@ -1173,6 +1172,10 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         _removeCollateral(_feesAmount, address(this), _borrower);
         // Adjusts bookkeeping only (increases collateral held by protocol)
         _addCollateral(address(this), _feesAmount, address(this));
+        // If applicable update all other pairs in LAV
+        if (address(externalAssetVault) != address(0)) {
+            externalAssetVault.whitelistUpdate(false);
+        }
     }
 
     // ============================================================================================
@@ -1221,6 +1224,9 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
 
         IERC20 _assetContract = assetContract;
         IERC20 _collateralContract = collateralContract;
+
+        // Check if borrow will violate the borrow limit and revert if necessary
+        if (borrowLimit < totalBorrow.amount + _borrowAmount) revert ExceedsBorrowLimit();
 
         if (!swappers[_swapperAddress]) {
             revert BadSwapper();
@@ -1294,14 +1300,19 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
     /// @param _swapperAddress The address of the whitelisted swapper to use for token swaps
     /// @param _collateralToSwap The amount of Collateral Tokens to swap for Asset Tokens
     /// @param _amountAssetOutMin The minimum amount of Asset Tokens to receive during the swap
+    /// @param _swapDeadline The deadline for the swap, will revert if block.timestamp > deadline
     /// @param _path An array containing the addresses of ERC20 tokens to swap.  Adheres to UniV2 style path params.
     /// @return _amountAssetOut The amount of Asset Tokens received for the Collateral Tokens, the amount the borrowers account was credited
     function repayAssetWithCollateral(
         address _swapperAddress,
         uint256 _collateralToSwap,
         uint256 _amountAssetOutMin,
+        uint256 _swapDeadline,
         address[] calldata _path
     ) external nonReentrant isSolvent(msg.sender) returns (uint256 _amountAssetOut) {
+        // Check if repay is paused revert if necessary
+        if (isRepayPaused) revert RepayPaused();
+
         // Accrue interest if necessary
         _addInterest();
 
@@ -1336,13 +1347,12 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
             _amountAssetOutMin,
             _path,
             address(this),
-            block.timestamp
+            _swapDeadline
         );
-        uint256 _finalAssetBalance = _assetContract.balanceOf(address(this));
 
         // Note: VIOLATES CHECKS-EFFECTS-INTERACTION pattern, make sure function is NONREENTRANT
         // Effects: bookkeeping
-        _amountAssetOut = _finalAssetBalance - _initialAssetBalance;
+        _amountAssetOut = _assetContract.balanceOf(address(this)) - _initialAssetBalance;
         if (_amountAssetOut < _amountAssetOutMin) {
             revert SlippageTooHigh(_amountAssetOutMin, _amountAssetOut);
         }
