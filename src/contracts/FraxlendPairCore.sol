@@ -71,6 +71,8 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
     /// @notice The liquidation fee, given as % of repayment amount, when some collateral remains for borrower
     /// @dev 1e5 precision
     uint256 public dirtyLiquidationFee;
+    /// @notice The minimum amount of collateral required to leave upon dirty liquidation
+    uint256 public minCollateralRequiredOnDirtyLiquidation;
     /// @notice The portion of the liquidation fee given to protocol
     /// @dev 1e5 precision
     uint256 public protocolLiquidationFee;
@@ -204,6 +206,7 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
     /// @notice The ```_totalAssetAvailable``` function returns the total balance of Asset Tokens in the contract
     /// @param _totalAsset VaultAccount struct which stores total amount and shares for assets
     /// @param _totalBorrow VaultAccount struct which stores total amount and shares for borrows
+    /// @param _includeVault Whether to include assets from the external asset vault, if configured in total available
     /// @return The balance of Asset Tokens held by contract
     function _totalAssetAvailable(
         VaultAccount memory _totalAsset,
@@ -601,9 +604,6 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
     /// @param _amount The amount of Asset Tokens to be transferred from the vault
     /// @return _sharesReceived The number of Asset Shares (fTokens) to mint for Asset Tokens
     function _depositFromVault(uint256 _amount) internal returns (uint256 _sharesReceived) {
-        // Accrue interest if necessary
-        _addInterest();
-
         // Pull from storage to save gas
         VaultAccount memory _totalAsset = totalAsset;
 
@@ -621,9 +621,6 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
     /// @param _amountToReturn The amount of Asset Tokens to be transferred to the vault
     /// @return _shares The number of Asset Shares (fTokens) to burn for Asset Tokens
     function _withdrawToVault(uint256 _amountToReturn) internal returns (uint256 _shares) {
-        // Accrue interest if necessary
-        _addInterest();
-
         // Pull from storage to save gas
         VaultAccount memory _totalAsset = totalAsset;
 
@@ -1130,10 +1127,6 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
                 // Determine if we need to adjust any shares
                 _sharesToAdjust = _borrowerShares - _sharesToLiquidate;
                 if (_sharesToAdjust > 0) {
-                    if (address(externalAssetVault) != address(0)) {
-                      externalAssetVault.whitelistUpdate(false);
-                    }
-
                     // Write off bad debt
                     _amountToAdjust = (_totalBorrow.toAmount(_sharesToAdjust, false)).toUint128();
 
@@ -1143,6 +1136,8 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
                     // Effects: write to state
                     totalAsset.amount -= _amountToAdjust;
                 }
+            } else if (_leftoverCollateral < minCollateralRequiredOnDirtyLiquidation.toInt256()) {
+              revert BadDirtyLiquidation();
             }
             emit Liquidate(
                 _borrower,

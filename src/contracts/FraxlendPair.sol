@@ -291,15 +291,15 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
 
     bool public isOracleSetterRevoked;
 
-    /// @notice The ```RevokeOracleSetter``` event is emitted when the oracle setter is revoked
-    event RevokeOracleInfoSetter();
+    // /// @notice The ```RevokeOracleSetter``` event is emitted when the oracle setter is revoked
+    // event RevokeOracleInfoSetter();
 
-    /// @notice The ```revokeOracleSetter``` function revokes the oracle setter
-    function revokeOracleInfoSetter() external {
-        _requireTimelock();
-        isOracleSetterRevoked = true;
-        emit RevokeOracleInfoSetter();
-    }
+    // /// @notice The ```revokeOracleSetter``` function revokes the oracle setter
+    // function revokeOracleInfoSetter() external {
+    //     _requireTimelock();
+    //     isOracleSetterRevoked = true;
+    //     emit RevokeOracleInfoSetter();
+    // }
 
     /// @notice The ```SetOracleInfo``` event is emitted when the oracle info (address and max deviation) is set
     /// @param oldOracle The old oracle address
@@ -333,15 +333,15 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
 
     bool public isMaxLTVSetterRevoked;
 
-    /// @notice The ```RevokeMaxLTVSetter``` event is emitted when the max LTV setter is revoked
-    event RevokeMaxLTVSetter();
+    // /// @notice The ```RevokeMaxLTVSetter``` event is emitted when the max LTV setter is revoked
+    // event RevokeMaxLTVSetter();
 
-    /// @notice The ```revokeMaxLTVSetter``` function revokes the max LTV setter
-    function revokeMaxLTVSetter() external {
-        _requireTimelock();
-        isMaxLTVSetterRevoked = true;
-        emit RevokeMaxLTVSetter();
-    }
+    // /// @notice The ```revokeMaxLTVSetter``` function revokes the max LTV setter
+    // function revokeMaxLTVSetter() external {
+    //     _requireTimelock();
+    //     isMaxLTVSetterRevoked = true;
+    //     emit RevokeMaxLTVSetter();
+    // }
 
     /// @notice The ```SetMaxLTV``` event is emitted when the max LTV is set
     /// @param oldMaxLTV The old max LTV
@@ -359,15 +359,15 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
 
     bool public isRateContractSetterRevoked;
 
-    /// @notice The ```RevokeRateContractSetter``` event is emitted when the rate contract setter is revoked
-    event RevokeRateContractSetter();
+    // /// @notice The ```RevokeRateContractSetter``` event is emitted when the rate contract setter is revoked
+    // event RevokeRateContractSetter();
 
-    /// @notice The ```revokeRateContractSetter``` function revokes the rate contract setter
-    function revokeRateContractSetter() external {
-        _requireTimelock();
-        isRateContractSetterRevoked = true;
-        emit RevokeRateContractSetter();
-    }
+    // /// @notice The ```revokeRateContractSetter``` function revokes the rate contract setter
+    // function revokeRateContractSetter() external {
+    //     _requireTimelock();
+    //     isRateContractSetterRevoked = true;
+    //     emit RevokeRateContractSetter();
+    // }
 
     /// @notice The ```SetRateContract``` event is emitted when the rate contract is set
     /// @param oldRateContract The old rate contract
@@ -414,10 +414,13 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
     /// @notice The ```setLiquidationFees``` function sets the liquidation fees
     /// @param _newCleanLiquidationFee The new clean liquidation fee
     /// @param _newDirtyLiquidationFee The new dirty liquidation fee
+    /// @param _newProtocolLiquidationFee The new protocol liquidation fee
+    /// @param _newMinCollateralRequiredOnDirtyLiquidation The new min collateral required to leave on dirty liquidation
     function setLiquidationFees(
         uint256 _newCleanLiquidationFee,
         uint256 _newDirtyLiquidationFee,
-        uint256 _newProtocolLiquidationFee
+        uint256 _newProtocolLiquidationFee,
+        uint256 _newMinCollateralRequiredOnDirtyLiquidation
     ) external {
         _requireTimelock();
         if (isLiquidationFeeSetterRevoked) revert SetterRevoked();
@@ -432,6 +435,7 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
         cleanLiquidationFee = _newCleanLiquidationFee;
         dirtyLiquidationFee = _newDirtyLiquidationFee;
         protocolLiquidationFee = _newProtocolLiquidationFee;
+        minCollateralRequiredOnDirtyLiquidation = _newMinCollateralRequiredOnDirtyLiquidation;
     }
 
     /// @notice The ```ChangeFee``` event first when the fee is changed
@@ -480,19 +484,19 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
         emit WithdrawFees(_shares, _recipient, _amountToTransfer, _collateralAmount);
     }
 
-    /// @notice The ```SetSwapper``` event fires whenever a swapper is black or whitelisted
-    /// @param swapper The swapper address
-    /// @param approval The approval
-    event SetSwapper(address swapper, bool approval);
+    // /// @notice The ```SetSwapper``` event fires whenever a swapper is black or whitelisted
+    // /// @param swapper The swapper address
+    // /// @param approval The approval
+    // event SetSwapper(address swapper, bool approval);
 
-    /// @notice The ```setSwapper``` function is called to black or whitelist a given swapper address
-    /// @dev
-    /// @param _swapper The swapper address
-    /// @param _approval The approval
-    function setSwapper(address _swapper, bool _approval) external onlyOwner {
-        swappers[_swapper] = _approval;
-        emit SetSwapper(_swapper, _approval);
-    }
+    // /// @notice The ```setSwapper``` function is called to black or whitelist a given swapper address
+    // /// @dev
+    // /// @param _swapper The swapper address
+    // /// @param _approval The approval
+    // function setSwapper(address _swapper, bool _approval) external onlyOwner {
+    //     swappers[_swapper] = _approval;
+    //     emit SetSwapper(_swapper, _approval);
+    // }
 
     // ============================================================================================
     // Functions: Access Control
@@ -523,6 +527,7 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
         if (!isInterestAccessControlRevoked) {
             _addInterest();
             _pauseInterest(false);
+            currentRateInfo.lastTimestamp = uint64(block.timestamp);
         }
     }
 
@@ -630,6 +635,7 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
     //     if (_isPaused) {
     //         _requireProtocolOrOwner();
     //     } else {
+    //         currentRateInfo.lastTimestamp = uint64(block.timestamp);
     //         _requireTimelockOrOwner();
     //     }
     //     if (isInterestAccessControlRevoked) revert AccessControlRevoked();

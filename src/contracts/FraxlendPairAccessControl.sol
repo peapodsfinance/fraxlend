@@ -209,6 +209,8 @@ abstract contract FraxlendPairAccessControl is Timelock2Step, Ownable2Step, Frax
         emit SetExternalAssetVault(address(_oldVault), address(vault));
     }
 
+    /// @notice The ```setExternalAssetVault``` function is called to set the external asset vault for the pair
+    /// @param vault The new external asset vault
     function setExternalAssetVault(IERC4626Extended vault) external {
         _requireTimelock();
         _setExternalAssetVault(vault);
