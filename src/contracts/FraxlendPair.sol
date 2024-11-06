@@ -484,19 +484,19 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
         emit WithdrawFees(_shares, _recipient, _amountToTransfer, _collateralAmount);
     }
 
-    // /// @notice The ```SetSwapper``` event fires whenever a swapper is black or whitelisted
-    // /// @param swapper The swapper address
-    // /// @param approval The approval
-    // event SetSwapper(address swapper, bool approval);
+    /// @notice The ```SetSwapper``` event fires whenever a swapper is black or whitelisted
+    /// @param swapper The swapper address
+    /// @param approval The approval
+    event SetSwapper(address swapper, bool approval);
 
-    // /// @notice The ```setSwapper``` function is called to black or whitelist a given swapper address
-    // /// @dev
-    // /// @param _swapper The swapper address
-    // /// @param _approval The approval
-    // function setSwapper(address _swapper, bool _approval) external onlyOwner {
-    //     swappers[_swapper] = _approval;
-    //     emit SetSwapper(_swapper, _approval);
-    // }
+    /// @notice The ```setSwapper``` function is called to black or whitelist a given swapper address
+    /// @dev
+    /// @param _swapper The swapper address
+    /// @param _approval The approval
+    function setSwapper(address _swapper, bool _approval) external onlyOwner {
+        swappers[_swapper] = _approval;
+        emit SetSwapper(_swapper, _approval);
+    }
 
     // ============================================================================================
     // Functions: Access Control

@@ -2,6 +2,19 @@
 pragma solidity >=0.8.19;
 
 interface IFraxlendPair {
+  struct CurrentRateInfo {
+        uint32 lastBlock;
+        uint32 feeToProtocolRate; // Fee amount 1e5 precision
+        uint64 lastTimestamp;
+        uint64 ratePerSec;
+        uint64 fullUtilizationRate;
+    }
+
+    struct VaultAccount {
+    uint128 amount; // Total amount, analogous to market cap
+    uint128 shares; // Total shares, analogous to shares outstanding
+}
+
     function CIRCUIT_BREAKER_ADDRESS() external view returns (address);
 
     function COMPTROLLER_ADDRESS() external view returns (address);
@@ -16,7 +29,14 @@ interface IFraxlendPair {
 
     function addInterest(bool _returnAccounting)
         external
-        returns (uint256 _interestEarned, uint256 _feesAmount, uint256 _feesShare, uint64 _newRate);
+        returns (
+            uint256 _interestEarned,
+            uint256 _feesAmount,
+            uint256 _feesShare,
+            CurrentRateInfo memory,
+            VaultAccount memory,
+            VaultAccount memory
+        );
 
     function allowance(address owner, address spender) external view returns (uint256);
 
