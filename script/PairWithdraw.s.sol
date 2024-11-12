@@ -20,13 +20,13 @@ contract PairWithdrawScript is Script {
 
         // Get USDC decimals and calculate withdraw amount (0.01 USDC)
         uint8 decimals = IERC20Metadata(USDC).decimals();
-        uint256 withdrawAmount = (1 * 10**decimals) / 100; // 0.01 USDC
+        uint256 withdrawAmount = (1 * 10 ** decimals) / 100; // 0.01 USDC
 
         // Perform withdrawal
         FraxlendPair(pair).withdraw(
             withdrawAmount,
-            msg.sender,    // receiver
-            msg.sender     // owner
+            msg.sender, // receiver
+            msg.sender // owner
         );
         console2.log("Withdrawal complete! Amount:", withdrawAmount);
 

@@ -39,29 +39,17 @@ contract DeployPairScript is Script {
         address comptrollerAddress = 0x93beE8C5f71c256F3eaE8Cdc33aA1f57711E6F38;
         address timelockAddress = 0x93beE8C5f71c256F3eaE8Cdc33aA1f57711E6F38;
 
-        bytes memory immutables = abi.encode(
-            circuitBreakerAddress,
-            comptrollerAddress,
-            timelockAddress
-        );
+        bytes memory immutables = abi.encode(circuitBreakerAddress, comptrollerAddress, timelockAddress);
 
         // Custom config parameters
         string memory nameOfContract = "Test Thing";
         string memory symbolOfContract = "TSTTHNG";
         uint8 decimalsOfContract = 18;
 
-        bytes memory customConfigData = abi.encode(
-            nameOfContract,
-            symbolOfContract,
-            decimalsOfContract
-        );
+        bytes memory customConfigData = abi.encode(nameOfContract, symbolOfContract, decimalsOfContract);
 
         // Deploy the contract
-        FraxlendPair newPair = new FraxlendPair(
-            configData,
-            immutables,
-            customConfigData
-        );
+        FraxlendPair newPair = new FraxlendPair(configData, immutables, customConfigData);
 
         console2.log("New FraxlendPair deployed at:", address(newPair));
 

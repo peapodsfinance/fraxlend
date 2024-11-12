@@ -26,13 +26,10 @@ contract PairDepositScript is Script {
 
         // Get USDC decimals and calculate deposit amount (1 USDC)
         uint8 decimals = IERC20Metadata(USDC).decimals();
-        uint256 depositAmount = 1 * 10**decimals;
+        uint256 depositAmount = 1 * 10 ** decimals;
 
         // Perform deposit
-        FraxlendPair(pair).deposit(
-            depositAmount,
-            msg.sender
-        );
+        FraxlendPair(pair).deposit(depositAmount, msg.sender);
         console2.log("Deposit complete! Amount:", depositAmount);
 
         vm.stopBroadcast();
