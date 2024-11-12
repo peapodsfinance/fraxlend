@@ -21,10 +21,10 @@ pragma solidity ^0.8.19;
 
 // ====================================================================
 
-import { Ownable2Step, Ownable } from "@openzeppelin/contracts/access/Ownable2Step.sol";
-import { Timelock2Step } from "./Timelock2Step.sol";
-import { FraxlendPairAccessControlErrors } from "./FraxlendPairAccessControlErrors.sol";
-import { IERC4626Extended } from './interfaces/IERC4626Extended.sol';
+import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
+import {Timelock2Step} from "./Timelock2Step.sol";
+import {FraxlendPairAccessControlErrors} from "./FraxlendPairAccessControlErrors.sol";
+import {IERC4626Extended} from "./interfaces/IERC4626Extended.sol";
 
 /// @title FraxlendPairAccessControl
 /// @author Drake Evans (Frax Finance) https://github.com/drakeevans
@@ -61,10 +61,8 @@ abstract contract FraxlendPairAccessControl is Timelock2Step, Ownable2Step, Frax
     /// @param _immutables abi.encode(address _circuitBreakerAddress, address _comptrollerAddress, address _timelockAddress)
     constructor(bytes memory _immutables) Timelock2Step() Ownable2Step() {
         // Handle Immutables Configuration
-        (address _circuitBreakerAddress, address _comptrollerAddress, address _timelockAddress) = abi.decode(
-            _immutables,
-            (address, address, address)
-        );
+        (address _circuitBreakerAddress, address _comptrollerAddress, address _timelockAddress) =
+            abi.decode(_immutables, (address, address, address));
         _setTimelock(_timelockAddress);
         _transferOwnership(_comptrollerAddress);
 
@@ -79,10 +77,8 @@ abstract contract FraxlendPairAccessControl is Timelock2Step, Ownable2Step, Frax
 
     function _requireProtocolOrOwner() internal view {
         if (
-            msg.sender != circuitBreakerAddress &&
-            msg.sender != owner() &&
-            msg.sender != DEPLOYER_ADDRESS &&
-            msg.sender != timelockAddress
+            msg.sender != circuitBreakerAddress && msg.sender != owner() && msg.sender != DEPLOYER_ADDRESS
+                && msg.sender != timelockAddress
         ) {
             revert OnlyProtocolOrOwner();
         }

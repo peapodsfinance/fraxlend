@@ -25,15 +25,15 @@ pragma solidity ^0.8.19;
 
 // ====================================================================
 
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
-import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
-import { SSTORE2 } from "@rari-capital/solmate/src/utils/SSTORE2.sol";
-import { BytesLib } from "solidity-bytes-utils/contracts/BytesLib.sol";
-import { IFraxlendWhitelist } from "./interfaces/IFraxlendWhitelist.sol";
-import { IFraxlendPair } from "./interfaces/IFraxlendPair.sol";
-import { IFraxlendPairRegistry } from "./interfaces/IFraxlendPairRegistry.sol";
-import { SafeERC20 } from "./libraries/SafeERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
+import {SSTORE2} from "@rari-capital/solmate/src/utils/SSTORE2.sol";
+import {BytesLib} from "solidity-bytes-utils/contracts/BytesLib.sol";
+import {IFraxlendWhitelist} from "./interfaces/IFraxlendWhitelist.sol";
+import {IFraxlendPair} from "./interfaces/IFraxlendPair.sol";
+import {IFraxlendPairRegistry} from "./interfaces/IFraxlendPairRegistry.sol";
+import {SafeERC20} from "./libraries/SafeERC20.sol";
 
 // solhint-disable no-inline-assembly
 
@@ -117,10 +117,11 @@ contract FraxlendPairDeployer is Ownable {
         _deployedPairs = deployedPairsArray;
     }
 
-    function getNextNameSymbol(
-        address _asset,
-        address _collateral
-    ) public view returns (string memory _name, string memory _symbol) {
+    function getNextNameSymbol(address _asset, address _collateral)
+        public
+        view
+        returns (string memory _name, string memory _symbol)
+    {
         uint256 _length = IFraxlendPairRegistry(fraxlendPairRegistryAddress).deployedPairsLength();
         _name = string(
             abi.encodePacked(
@@ -237,19 +238,15 @@ contract FraxlendPairDeployer is Ownable {
     /// @param _immutables abi.encode(address _circuitBreakerAddress, address _comptrollerAddress, address _timelockAddress)
     /// @param _customConfigData abi.encode(string memory _nameOfContract, string memory _symbolOfContract, uint8 _decimalsOfContract)
     /// @return _pairAddress The address to which the Pair was deployed
-    function _deploy(
-        bytes memory _configData,
-        bytes memory _immutables,
-        bytes memory _customConfigData
-    ) private returns (address _pairAddress) {
+    function _deploy(bytes memory _configData, bytes memory _immutables, bytes memory _customConfigData)
+        private
+        returns (address _pairAddress)
+    {
         // Get creation code
         bytes memory _creationCode = BytesLib.concat(SSTORE2.read(contractAddress1), SSTORE2.read(contractAddress2));
 
         // Get bytecode
-        bytes memory bytecode = abi.encodePacked(
-            _creationCode,
-            abi.encode(_configData, _immutables, _customConfigData)
-        );
+        bytes memory bytecode = abi.encodePacked(_creationCode, abi.encode(_configData, _immutables, _customConfigData));
 
         // Generate salt using constructor params
         bytes32 salt = keccak256(abi.encodePacked(_configData, _immutables, _customConfigData));
@@ -284,10 +281,8 @@ contract FraxlendPairDeployer is Ownable {
             revert WhitelistedDeployersOnly();
         }
 
-        (address _asset, address _collateral, , , , , , , ) = abi.decode(
-            _configData,
-            (address, address, address, uint32, address, uint64, uint256, uint256, uint256)
-        );
+        (address _asset, address _collateral,,,,,,,) =
+            abi.decode(_configData, (address, address, address, uint32, address, uint64, uint256, uint256, uint256));
 
         (string memory _name, string memory _symbol) = getNextNameSymbol(_asset, _collateral);
 
@@ -315,7 +310,7 @@ contract FraxlendPairDeployer is Ownable {
         address _pairAddress;
         uint256 _lengthOfArray = _addresses.length;
         _updatedAddresses = new address[](_lengthOfArray);
-        for (uint256 i = 0; i < _lengthOfArray; ) {
+        for (uint256 i = 0; i < _lengthOfArray;) {
             _pairAddress = _addresses[i];
             try IFraxlendPair(_pairAddress).pause() {
                 _updatedAddresses[i] = _addresses[i];
