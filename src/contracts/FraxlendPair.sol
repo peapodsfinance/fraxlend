@@ -515,6 +515,17 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
         }
     }
 
+    event UpdatedMinURChange(uint256 newURChange);
+
+    /// @notice The ```setMinURChangeForExternalAddInterest``` function sets the new minimum UR change for external add interest
+    /// @param _newURChange The new rate change needed
+    function setMinURChangeForExternalAddInterest(uint256 _newURChange) external {
+        _requireTimelockOrOwner();
+        if (_newURChange > UTIL_PREC) revert MinURChangeMax();
+        minURChangeForExternalAddInterest = _newURChange;
+        emit UpdatedMinURChange(_newURChange);
+    }
+
     // /// @notice The ```pauseBorrow``` function sets borrow limit to 0
     // function pauseBorrow() external {
     //     _requireProtocolOrOwner();

@@ -58,4 +58,5 @@ abstract contract FraxlendPairConstants {
     error InvalidReceiver();
     error ExternalAssetVaultOnly();
     error BadDirtyLiquidation();
+    error MinURChangeMax();
 }

@@ -83,6 +83,9 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
     // Swapper
     mapping(address => bool) public swappers; // approved swapper addresses
 
+    // If provided, will only update interest rate when external add interest is called if this threshold is met from previous UR update
+    uint256 public minURChangeForExternalAddInterest = UTIL_PREC / 1000;
+
     // ERC20 Metadata
     string internal nameOfContract;
     string internal symbolOfContract;
@@ -258,6 +261,10 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
     /// @param feesShare The amount of shares distributed to protocol
     event AddInterest(uint256 interestEarned, uint256 rate, uint256 feesAmount, uint256 feesShare);
 
+    /// @notice The ```SkipAddingInterest``` event is emitted when external add interest is called byt noops due to small rate change
+    /// @param rateChange The rate change
+    event SkipAddingInterest(uint256 rateChange);
+
     /// @notice The ```UpdateRate``` event is emitted when the interest rate is updated
     /// @param oldRatePerSec The old interest rate (per second)
     /// @param oldFullUtilizationRate The old full utilization rate
@@ -286,7 +293,25 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
             VaultAccount memory _totalBorrow
         )
     {
-        (, _interestEarned, _feesAmount, _feesShare, _currentRateInfo) = _addInterest();
+        // the following checks whether the current utilization rate against the new utilization rate
+        // (including external assets available) exceeds a threshold and only updates interest if so.
+        // With this enabled, it's obviously possible for there to be some level of "unfair" interest
+        // either being paid by borrowers or earned by suppliers, but the idea is this unfairness
+        // should theoretically be negligible within some level of error and therefore it won't matter.
+        // This is in place to support lower gas & more arbitrage volume through the pair since arbitrage
+        // would many times only occur with small changes in asset supply or borrowed positions.
+        uint256 _currentUtilizationRate = _currentRateInfo.fullUtilizationRate;
+        uint256 _totalAssetsAvailable = totalAsset.totalAmount(address(externalAssetVault));
+        uint256 _newUtilizationRate =
+            _totalAssetsAvailable == 0 ? 0 : (UTIL_PREC * totalBorrow.amount) / _totalAssetsAvailable;
+        uint256 _rateChange = _newUtilizationRate > _currentUtilizationRate
+            ? _newUtilizationRate - _currentUtilizationRate
+            : _currentUtilizationRate - _newUtilizationRate;
+        if (_rateChange < _currentUtilizationRate * minURChangeForExternalAddInterest / UTIL_PREC) {
+            emit SkipAddingInterest(_rateChange);
+        } else {
+            (, _interestEarned, _feesAmount, _feesShare, _currentRateInfo) = _addInterest();
+        }
         if (_returnAccounting) {
             _totalAsset = totalAsset;
             _totalBorrow = totalBorrow;
