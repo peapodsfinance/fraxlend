@@ -584,15 +584,17 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         if (_shouldTransfer) {
             assetContract.safeTransferFrom(msg.sender, address(this), _amount);
 
-            // if the external asset vault is over utilized or this pair is over allocated,
-            // return the amount being deposited to the vault
-            uint256 _assetsUtilized = externalAssetVault.vaultUtilization(address(this));
-            bool _vaultOverUtilized =
-                1e18 * externalAssetVault.totalAssetsUtilized() / externalAssetVault.totalAssets() > 1e18 * 8 / 10;
-            bool _pairOverAllocation = _assetsUtilized > externalAssetVault.vaultMaxAllocation(address(this));
-            if (_vaultOverUtilized || _pairOverAllocation) {
-                uint256 _extAmount = _assetsUtilized > _amount ? _amount : _assetsUtilized;
-                _withdrawToVault(_extAmount);
+            if (_amount > _totalAsset.totalAmount(address(0)) / 1000) {
+                // if the external asset vault is over utilized or this pair is over allocated,
+                // return the amount being deposited to the vault
+                uint256 _assetsUtilized = externalAssetVault.vaultUtilization(address(this));
+                bool _vaultOverUtilized =
+                    1e18 * externalAssetVault.totalAssetsUtilized() / externalAssetVault.totalAssets() > 1e18 * 8 / 10;
+                bool _pairOverAllocation = _assetsUtilized > externalAssetVault.vaultMaxAllocation(address(this));
+                if (_vaultOverUtilized || _pairOverAllocation) {
+                    uint256 _extAmount = _assetsUtilized > _amount ? _amount : _assetsUtilized;
+                    _withdrawToVault(_extAmount);
+                }
             }
         }
         emit Deposit(msg.sender, _receiver, _amount, _shares);
