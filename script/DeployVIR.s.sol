@@ -9,7 +9,8 @@ contract DeployVIRScript is Script {
     function setUp() public {}
 
     function run() public {
-        vm.startBroadcast();
+        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
+        vm.startBroadcast(vm.addr(deployerPrivateKey));
 
         // Deploy with the same parameters as the original script
         // [0.5 0.2@.875 5-10k] 2 days (.75-.85)

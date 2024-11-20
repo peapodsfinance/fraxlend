@@ -7,28 +7,21 @@ import {FraxlendPair} from "../src/contracts/FraxlendPair.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract PairWithdrawScript is Script {
-    address constant USDC = 0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
-
-    function setUp() public {}
-
     function run() public {
+        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
+        vm.startBroadcast(vm.addr(deployerPrivateKey));
+
         // Get the pair address from environment variable
         address pair = vm.envAddress("PAIR");
-        require(pair != address(0), "PAIR address not set");
-
-        vm.startBroadcast();
-
-        // Get USDC decimals and calculate withdraw amount (0.01 USDC)
-        uint8 decimals = IERC20Metadata(USDC).decimals();
-        uint256 withdrawAmount = (1 * 10 ** decimals) / 100; // 0.01 USDC
+        uint256 amount = vm.envUint("AMOUNT");
 
         // Perform withdrawal
         FraxlendPair(pair).withdraw(
-            withdrawAmount,
+            amount,
             msg.sender, // receiver
             msg.sender // owner
         );
-        console2.log("Withdrawal complete! Amount:", withdrawAmount);
+        console2.log("Withdrawal complete! Amount:", amount);
 
         vm.stopBroadcast();
     }

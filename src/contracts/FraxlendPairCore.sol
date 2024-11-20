@@ -584,7 +584,7 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         if (_shouldTransfer) {
             assetContract.safeTransferFrom(msg.sender, address(this), _amount);
 
-            if (_amount > _totalAsset.totalAmount(address(0)) / 1000) {
+            if (address(externalAssetVault) != address(0) && _amount > _totalAsset.totalAmount(address(0)) / 1000) {
                 // if the external asset vault is over utilized or this pair is over allocated,
                 // return the amount being deposited to the vault
                 uint256 _assetsUtilized = externalAssetVault.vaultUtilization(address(this));
@@ -1200,96 +1200,96 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
     // Functions: Leverage
     // ============================================================================================
 
-    /// @notice The ```LeveragedPosition``` event is emitted when a borrower takes out a new leveraged position
-    /// @param _borrower The account for which the debt is debited
-    /// @param _swapperAddress The address of the swapper which conforms the FraxSwap interface
-    /// @param _borrowAmount The amount of Asset Token to be borrowed to be borrowed
-    /// @param _borrowShares The number of Borrow Shares the borrower is credited
-    /// @param _initialCollateralAmount The amount of initial Collateral Tokens supplied by the borrower
-    /// @param _amountCollateralOut The amount of Collateral Token which was received for the Asset Tokens
-    event LeveragedPosition(
-        address indexed _borrower,
-        address _swapperAddress,
-        uint256 _borrowAmount,
-        uint256 _borrowShares,
-        uint256 _initialCollateralAmount,
-        uint256 _amountCollateralOut
-    );
+    // /// @notice The ```LeveragedPosition``` event is emitted when a borrower takes out a new leveraged position
+    // /// @param _borrower The account for which the debt is debited
+    // /// @param _swapperAddress The address of the swapper which conforms the FraxSwap interface
+    // /// @param _borrowAmount The amount of Asset Token to be borrowed to be borrowed
+    // /// @param _borrowShares The number of Borrow Shares the borrower is credited
+    // /// @param _initialCollateralAmount The amount of initial Collateral Tokens supplied by the borrower
+    // /// @param _amountCollateralOut The amount of Collateral Token which was received for the Asset Tokens
+    // event LeveragedPosition(
+    //     address indexed _borrower,
+    //     address _swapperAddress,
+    //     uint256 _borrowAmount,
+    //     uint256 _borrowShares,
+    //     uint256 _initialCollateralAmount,
+    //     uint256 _amountCollateralOut
+    // );
 
-    /// @notice The ```leveragedPosition``` function allows a user to enter a leveraged borrow position with minimal upfront Collateral
-    /// @dev Caller must invoke ```ERC20.approve()``` on the Collateral Token contract prior to calling function
-    /// @param _swapperAddress The address of the whitelisted swapper to use to swap borrowed Asset Tokens for Collateral Tokens
-    /// @param _borrowAmount The amount of Asset Tokens borrowed
-    /// @param _initialCollateralAmount The initial amount of Collateral Tokens supplied by the borrower
-    /// @param _amountCollateralOutMin The minimum amount of Collateral Tokens to be received in exchange for the borrowed Asset Tokens
-    /// @param _path An array containing the addresses of ERC20 tokens to swap.  Adheres to UniV2 style path params.
-    /// @return _totalCollateralBalance The total amount of Collateral Tokens added to a users account (initial + swap)
-    function leveragedPosition(
-        address _swapperAddress,
-        uint256 _borrowAmount,
-        uint256 _initialCollateralAmount,
-        uint256 _amountCollateralOutMin,
-        address[] memory _path
-    ) external nonReentrant isSolvent(msg.sender) returns (uint256 _totalCollateralBalance) {
-        // Accrue interest if necessary
-        _addInterest();
+    // /// @notice The ```leveragedPosition``` function allows a user to enter a leveraged borrow position with minimal upfront Collateral
+    // /// @dev Caller must invoke ```ERC20.approve()``` on the Collateral Token contract prior to calling function
+    // /// @param _swapperAddress The address of the whitelisted swapper to use to swap borrowed Asset Tokens for Collateral Tokens
+    // /// @param _borrowAmount The amount of Asset Tokens borrowed
+    // /// @param _initialCollateralAmount The initial amount of Collateral Tokens supplied by the borrower
+    // /// @param _amountCollateralOutMin The minimum amount of Collateral Tokens to be received in exchange for the borrowed Asset Tokens
+    // /// @param _path An array containing the addresses of ERC20 tokens to swap.  Adheres to UniV2 style path params.
+    // /// @return _totalCollateralBalance The total amount of Collateral Tokens added to a users account (initial + swap)
+    // function leveragedPosition(
+    //     address _swapperAddress,
+    //     uint256 _borrowAmount,
+    //     uint256 _initialCollateralAmount,
+    //     uint256 _amountCollateralOutMin,
+    //     address[] memory _path
+    // ) external nonReentrant isSolvent(msg.sender) returns (uint256 _totalCollateralBalance) {
+    //     // Accrue interest if necessary
+    //     _addInterest();
 
-        // Update exchange rate and check if borrow is allowed, revert if not
-        {
-            (bool _isBorrowAllowed,,) = _updateExchangeRate();
-            if (!_isBorrowAllowed) revert ExceedsMaxOracleDeviation();
-        }
+    //     // Update exchange rate and check if borrow is allowed, revert if not
+    //     {
+    //         (bool _isBorrowAllowed,,) = _updateExchangeRate();
+    //         if (!_isBorrowAllowed) revert ExceedsMaxOracleDeviation();
+    //     }
 
-        IERC20 _assetContract = assetContract;
-        IERC20 _collateralContract = collateralContract;
+    //     IERC20 _assetContract = assetContract;
+    //     IERC20 _collateralContract = collateralContract;
 
-        // Check if borrow will violate the borrow limit and revert if necessary
-        if (borrowLimit < totalBorrow.amount + _borrowAmount) revert ExceedsBorrowLimit();
+    //     // Check if borrow will violate the borrow limit and revert if necessary
+    //     if (borrowLimit < totalBorrow.amount + _borrowAmount) revert ExceedsBorrowLimit();
 
-        if (!swappers[_swapperAddress]) {
-            revert BadSwapper();
-        }
-        if (_path[0] != address(_assetContract)) {
-            revert InvalidPath(address(_assetContract), _path[0]);
-        }
-        if (_path[_path.length - 1] != address(_collateralContract)) {
-            revert InvalidPath(address(_collateralContract), _path[_path.length - 1]);
-        }
+    //     if (!swappers[_swapperAddress]) {
+    //         revert BadSwapper();
+    //     }
+    //     if (_path[0] != address(_assetContract)) {
+    //         revert InvalidPath(address(_assetContract), _path[0]);
+    //     }
+    //     if (_path[_path.length - 1] != address(_collateralContract)) {
+    //         revert InvalidPath(address(_collateralContract), _path[_path.length - 1]);
+    //     }
 
-        // Add initial collateral
-        if (_initialCollateralAmount > 0) {
-            _addCollateral(msg.sender, _initialCollateralAmount, msg.sender);
-        }
+    //     // Add initial collateral
+    //     if (_initialCollateralAmount > 0) {
+    //         _addCollateral(msg.sender, _initialCollateralAmount, msg.sender);
+    //     }
 
-        // Debit borrowers account
-        // setting recipient to address(this) means no transfer will happen
-        uint256 _borrowShares = _borrowAsset(_borrowAmount.toUint128(), address(this));
+    //     // Debit borrowers account
+    //     // setting recipient to address(this) means no transfer will happen
+    //     uint256 _borrowShares = _borrowAsset(_borrowAmount.toUint128(), address(this));
 
-        // Interactions
-        _assetContract.approve(_swapperAddress, _borrowAmount);
+    //     // Interactions
+    //     _assetContract.approve(_swapperAddress, _borrowAmount);
 
-        // Even though swappers are trusted, we verify the balance before and after swap
-        uint256 _initialCollateralBalance = _collateralContract.balanceOf(address(this));
-        ISwapper(_swapperAddress).swapExactTokensForTokens(
-            _borrowAmount, _amountCollateralOutMin, _path, address(this), block.timestamp
-        );
-        uint256 _finalCollateralBalance = _collateralContract.balanceOf(address(this));
+    //     // Even though swappers are trusted, we verify the balance before and after swap
+    //     uint256 _initialCollateralBalance = _collateralContract.balanceOf(address(this));
+    //     ISwapper(_swapperAddress).swapExactTokensForTokens(
+    //         _borrowAmount, _amountCollateralOutMin, _path, address(this), block.timestamp
+    //     );
+    //     uint256 _finalCollateralBalance = _collateralContract.balanceOf(address(this));
 
-        // Note: VIOLATES CHECKS-EFFECTS-INTERACTION pattern, make sure function is NONREENTRANT
-        // Effects: bookkeeping & write to state
-        uint256 _amountCollateralOut = _finalCollateralBalance - _initialCollateralBalance;
-        if (_amountCollateralOut < _amountCollateralOutMin) {
-            revert SlippageTooHigh(_amountCollateralOutMin, _amountCollateralOut);
-        }
+    //     // Note: VIOLATES CHECKS-EFFECTS-INTERACTION pattern, make sure function is NONREENTRANT
+    //     // Effects: bookkeeping & write to state
+    //     uint256 _amountCollateralOut = _finalCollateralBalance - _initialCollateralBalance;
+    //     if (_amountCollateralOut < _amountCollateralOutMin) {
+    //         revert SlippageTooHigh(_amountCollateralOutMin, _amountCollateralOut);
+    //     }
 
-        // address(this) as _sender means no transfer occurs as the pair has already received the collateral during swap
-        _addCollateral(address(this), _amountCollateralOut, msg.sender);
+    //     // address(this) as _sender means no transfer occurs as the pair has already received the collateral during swap
+    //     _addCollateral(address(this), _amountCollateralOut, msg.sender);
 
-        _totalCollateralBalance = _initialCollateralAmount + _amountCollateralOut;
-        emit LeveragedPosition(
-            msg.sender, _swapperAddress, _borrowAmount, _borrowShares, _initialCollateralAmount, _amountCollateralOut
-        );
-    }
+    //     _totalCollateralBalance = _initialCollateralAmount + _amountCollateralOut;
+    //     emit LeveragedPosition(
+    //         msg.sender, _swapperAddress, _borrowAmount, _borrowShares, _initialCollateralAmount, _amountCollateralOut
+    //     );
+    // }
 
     /// @notice The ```RepayAssetWithCollateral``` event is emitted whenever ```repayAssetWithCollateral()``` is invoked
     /// @param _borrower The borrower account for which the repayment is taking place

@@ -7,26 +7,17 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {FraxlendPair} from "../src/contracts/FraxlendPair.sol";
 
 contract PairDepositScript is Script {
-    address constant USDC = 0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
-
-    function setUp() public {}
-
     function run() public {
+        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
+        vm.startBroadcast(vm.addr(deployerPrivateKey));
+
         // Get the pair address from environment variable
         address pair = vm.envAddress("PAIR");
-        require(pair != address(0), "PAIR address not set");
+        uint256 depositAmount = vm.envUint("AMOUNT");
 
-        vm.startBroadcast();
+        address _asset = FraxlendPair(pair).asset();
 
-        // Approve USDC spending
-        IERC20 usdc = IERC20(USDC);
-        uint256 maxApproval = type(uint96).max;
-        usdc.approve(pair, maxApproval);
-        console2.log("USDC approved for pair:", pair);
-
-        // Get USDC decimals and calculate deposit amount (1 USDC)
-        uint8 decimals = IERC20Metadata(USDC).decimals();
-        uint256 depositAmount = 1 * 10 ** decimals;
+        IERC20(_asset).approve(pair, depositAmount);
 
         // Perform deposit
         FraxlendPair(pair).deposit(depositAmount, msg.sender);
