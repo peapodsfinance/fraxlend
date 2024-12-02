@@ -293,6 +293,7 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
             VaultAccount memory _totalBorrow
         )
     {
+        _currentRateInfo = currentRateInfo;
         // the following checks whether the current utilization rate against the new utilization rate
         // (including external assets available) exceeds a threshold and only updates interest if so.
         // With this enabled, it's obviously possible for there to be some level of "unfair" interest
