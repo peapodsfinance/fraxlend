@@ -293,6 +293,7 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
             VaultAccount memory _totalBorrow
         )
     {
+        _currentRateInfo = currentRateInfo;
         // the following checks whether the current utilization rate against the new utilization rate
         // (including external assets available) exceeds a threshold and only updates interest if so.
         // With this enabled, it's obviously possible for there to be some level of "unfair" interest
@@ -587,6 +588,7 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
             if (address(externalAssetVault) != address(0) && _amount > _totalAsset.totalAmount(address(0)) / 1000) {
                 // if the external asset vault is over utilized or this pair is over allocated,
                 // return the amount being deposited to the vault
+                externalAssetVault.whitelistUpdate(true);
                 uint256 _assetsUtilized = externalAssetVault.vaultUtilization(address(this));
                 bool _vaultOverUtilized =
                     1e18 * externalAssetVault.totalAssetsUtilized() / externalAssetVault.totalAssets() > 1e18 * 8 / 10;
