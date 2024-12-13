@@ -67,6 +67,9 @@ contract FraxlendPairDeployer is Ownable {
     // Default swappers
     address[] public defaultSwappers;
 
+    // Default deposit amount for new pairs
+    uint256 public defaultDepositAmt;
+
     /// @notice Emits when a new pair is deployed
     /// @notice The ```LogDeploy``` event is emitted when a new Pair is deployed
     /// @param address_ The address of the pair
@@ -169,6 +172,10 @@ contract FraxlendPairDeployer is Ownable {
         defaultSwappers = _swappers;
     }
 
+    function setDefaultDepositAmt(uint256 _amount) external onlyOwner {
+        defaultDepositAmt = _amount;
+    }
+
     /// @notice The ```SetTimelock``` event is emitted when the timelockAddress is set
     /// @param oldAddress The original address
     /// @param newAddress The new address
@@ -261,6 +268,11 @@ contract FraxlendPairDeployer is Ownable {
 
         // Set additional values for FraxlendPair
         IFraxlendPair _fraxlendPair = IFraxlendPair(_pairAddress);
+        if (defaultDepositAmt > 0) {
+            IERC20(_fraxlendPair.asset()).safeTransferFrom(msg.sender, address(this), defaultDepositAmt);
+            IERC20(_fraxlendPair.asset()).approve(address(_fraxlendPair), defaultDepositAmt);
+            _fraxlendPair.deposit(defaultDepositAmt, msg.sender);
+        }
         address[] memory _defaultSwappers = defaultSwappers;
         for (uint256 i = 0; i < _defaultSwappers.length; i++) {
             _fraxlendPair.setSwapper(_defaultSwappers[i], true);
