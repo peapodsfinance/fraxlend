@@ -1293,84 +1293,84 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
     //     );
     // }
 
-    /// @notice The ```RepayAssetWithCollateral``` event is emitted whenever ```repayAssetWithCollateral()``` is invoked
-    /// @param _borrower The borrower account for which the repayment is taking place
-    /// @param _swapperAddress The address of the whitelisted swapper to use for token swaps
-    /// @param _collateralToSwap The amount of Collateral Token to swap and use for repayment
-    /// @param _amountAssetOut The amount of Asset Token which was repaid
-    /// @param _sharesRepaid The number of Borrow Shares which were repaid
-    event RepayAssetWithCollateral(
-        address indexed _borrower,
-        address _swapperAddress,
-        uint256 _collateralToSwap,
-        uint256 _amountAssetOut,
-        uint256 _sharesRepaid
-    );
+    // /// @notice The ```RepayAssetWithCollateral``` event is emitted whenever ```repayAssetWithCollateral()``` is invoked
+    // /// @param _borrower The borrower account for which the repayment is taking place
+    // /// @param _swapperAddress The address of the whitelisted swapper to use for token swaps
+    // /// @param _collateralToSwap The amount of Collateral Token to swap and use for repayment
+    // /// @param _amountAssetOut The amount of Asset Token which was repaid
+    // /// @param _sharesRepaid The number of Borrow Shares which were repaid
+    // event RepayAssetWithCollateral(
+    //     address indexed _borrower,
+    //     address _swapperAddress,
+    //     uint256 _collateralToSwap,
+    //     uint256 _amountAssetOut,
+    //     uint256 _sharesRepaid
+    // );
 
-    /// @notice The ```repayAssetWithCollateral``` function allows a borrower to repay their debt using existing collateral in contract
-    /// @param _swapperAddress The address of the whitelisted swapper to use for token swaps
-    /// @param _collateralToSwap The amount of Collateral Tokens to swap for Asset Tokens
-    /// @param _amountAssetOutMin The minimum amount of Asset Tokens to receive during the swap
-    /// @param _swapDeadline The deadline for the swap, will revert if block.timestamp > deadline
-    /// @param _path An array containing the addresses of ERC20 tokens to swap.  Adheres to UniV2 style path params.
-    /// @return _amountAssetOut The amount of Asset Tokens received for the Collateral Tokens, the amount the borrowers account was credited
-    function repayAssetWithCollateral(
-        address _swapperAddress,
-        uint256 _collateralToSwap,
-        uint256 _amountAssetOutMin,
-        uint256 _swapDeadline,
-        address[] calldata _path
-    ) external nonReentrant isSolvent(msg.sender) returns (uint256 _amountAssetOut) {
-        // Check if repay is paused revert if necessary
-        if (isRepayPaused) revert RepayPaused();
+    // /// @notice The ```repayAssetWithCollateral``` function allows a borrower to repay their debt using existing collateral in contract
+    // /// @param _swapperAddress The address of the whitelisted swapper to use for token swaps
+    // /// @param _collateralToSwap The amount of Collateral Tokens to swap for Asset Tokens
+    // /// @param _amountAssetOutMin The minimum amount of Asset Tokens to receive during the swap
+    // /// @param _swapDeadline The deadline for the swap, will revert if block.timestamp > deadline
+    // /// @param _path An array containing the addresses of ERC20 tokens to swap.  Adheres to UniV2 style path params.
+    // /// @return _amountAssetOut The amount of Asset Tokens received for the Collateral Tokens, the amount the borrowers account was credited
+    // function repayAssetWithCollateral(
+    //     address _swapperAddress,
+    //     uint256 _collateralToSwap,
+    //     uint256 _amountAssetOutMin,
+    //     uint256 _swapDeadline,
+    //     address[] calldata _path
+    // ) external nonReentrant isSolvent(msg.sender) returns (uint256 _amountAssetOut) {
+    //     // Check if repay is paused revert if necessary
+    //     if (isRepayPaused) revert RepayPaused();
 
-        // Accrue interest if necessary
-        _addInterest();
+    //     // Accrue interest if necessary
+    //     _addInterest();
 
-        // Update exchange rate and check if borrow is allowed, revert if not
-        (bool _isBorrowAllowed,,) = _updateExchangeRate();
-        if (!_isBorrowAllowed) revert ExceedsMaxOracleDeviation();
+    //     // Update exchange rate and check if borrow is allowed, revert if not
+    //     (bool _isBorrowAllowed,,) = _updateExchangeRate();
+    //     if (!_isBorrowAllowed) revert ExceedsMaxOracleDeviation();
 
-        IERC20 _assetContract = assetContract;
-        IERC20 _collateralContract = collateralContract;
+    //     IERC20 _assetContract = assetContract;
+    //     IERC20 _collateralContract = collateralContract;
 
-        if (!swappers[_swapperAddress]) {
-            revert BadSwapper();
-        }
-        if (_path[0] != address(_collateralContract)) {
-            revert InvalidPath(address(_collateralContract), _path[0]);
-        }
-        if (_path[_path.length - 1] != address(_assetContract)) {
-            revert InvalidPath(address(_assetContract), _path[_path.length - 1]);
-        }
+    //     if (!swappers[_swapperAddress]) {
+    //         revert BadSwapper();
+    //     }
+    //     if (_path[0] != address(_collateralContract)) {
+    //         revert InvalidPath(address(_collateralContract), _path[0]);
+    //     }
+    //     if (_path[_path.length - 1] != address(_assetContract)) {
+    //         revert InvalidPath(address(_assetContract), _path[_path.length - 1]);
+    //     }
 
-        // Effects: bookkeeping & write to state
-        // Debit users collateral balance in preparation for swap, setting _recipient to address(this) means no transfer occurs
-        _removeCollateral(_collateralToSwap, address(this), msg.sender);
+    //     // Effects: bookkeeping & write to state
+    //     // Debit users collateral balance in preparation for swap, setting _recipient to address(this) means no transfer occurs
+    //     _removeCollateral(_collateralToSwap, address(this), msg.sender);
 
-        // Interactions
-        _collateralContract.approve(_swapperAddress, _collateralToSwap);
+    //     // Interactions
+    //     _collateralContract.approve(_swapperAddress, _collateralToSwap);
 
-        // Even though swappers are trusted, we verify the balance before and after swap
-        uint256 _initialAssetBalance = _assetContract.balanceOf(address(this));
-        ISwapper(_swapperAddress).swapExactTokensForTokens(
-            _collateralToSwap, _amountAssetOutMin, _path, address(this), _swapDeadline
-        );
+    //     // Even though swappers are trusted, we verify the balance before and after swap
+    //     uint256 _initialAssetBalance = _assetContract.balanceOf(address(this));
+    //     ISwapper(_swapperAddress).swapExactTokensForTokens(
+    //         _collateralToSwap, _amountAssetOutMin, _path, address(this), _swapDeadline
+    //     );
 
-        // Note: VIOLATES CHECKS-EFFECTS-INTERACTION pattern, make sure function is NONREENTRANT
-        // Effects: bookkeeping
-        _amountAssetOut = _assetContract.balanceOf(address(this)) - _initialAssetBalance;
-        if (_amountAssetOut < _amountAssetOutMin) {
-            revert SlippageTooHigh(_amountAssetOutMin, _amountAssetOut);
-        }
+    //     // Note: VIOLATES CHECKS-EFFECTS-INTERACTION pattern, make sure function is NONREENTRANT
+    //     // Effects: bookkeeping
+    //     _amountAssetOut = _assetContract.balanceOf(address(this)) - _initialAssetBalance;
+    //     if (_amountAssetOut < _amountAssetOutMin) {
+    //         revert SlippageTooHigh(_amountAssetOutMin, _amountAssetOut);
+    //     }
 
-        VaultAccount memory _totalBorrow = totalBorrow;
-        uint256 _sharesToRepay = _totalBorrow.toShares(_amountAssetOut, false);
+    //     VaultAccount memory _totalBorrow = totalBorrow;
+    //     uint256 _sharesToRepay = _totalBorrow.toShares(_amountAssetOut, false);
 
-        // Effects: write to state
-        // Note: setting _payer to address(this) means no actual transfer will occur.  Contract already has funds
-        _repayAsset(_totalBorrow, _amountAssetOut.toUint128(), _sharesToRepay.toUint128(), address(this), msg.sender);
+    //     // Effects: write to state
+    //     // Note: setting _payer to address(this) means no actual transfer will occur.  Contract already has funds
+    //     _repayAsset(_totalBorrow, _amountAssetOut.toUint128(), _sharesToRepay.toUint128(), address(this), msg.sender);
 
-        emit RepayAssetWithCollateral(msg.sender, _swapperAddress, _collateralToSwap, _amountAssetOut, _sharesToRepay);
-    }
+    //     emit RepayAssetWithCollateral(msg.sender, _swapperAddress, _collateralToSwap, _amountAssetOut, _sharesToRepay);
+    // }
 }

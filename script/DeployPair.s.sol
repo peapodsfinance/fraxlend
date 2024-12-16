@@ -22,7 +22,8 @@ contract DeployPairScript is Script {
         // Config data parameters
         uint32 maxOracleDeviation = 5000;
         uint64 fullUtilizationRate = 90000;
-        uint256 maxLTV = 0; // noop maxLTV, allow any LTV
+        // uint256 maxLTV = 0; // noop maxLTV, allow any LTV
+        uint256 maxLTV = 60000; // 60%
         uint256 liquidationFee = 10000;
         uint256 protocolLiquidationFee = 1000;
 
