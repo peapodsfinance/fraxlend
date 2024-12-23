@@ -678,7 +678,7 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
 
     function previewMint(uint256 _shares) external view returns (uint256 _amount) {
         (,,,, VaultAccount memory _totalAsset,) = previewAddInterest();
-        _amount = _totalAsset.toAmount(_shares, false);
+        _amount = _totalAsset.toAmount(_shares, true);
     }
 
     function mint(uint256 _shares, address _receiver) external nonReentrant returns (uint256 _amount) {
