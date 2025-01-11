@@ -130,6 +130,8 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
     /// @notice Stores the balance of borrow shares for each user
     mapping(address => uint256) public userBorrowShares; // represents the shares held by individuals
 
+    uint256 _prevUtilizationRate;
+
     // NOTE: user shares of assets are represented as ERC-20 tokens and accessible via balanceOf()
 
     // ============================================================================================
@@ -297,18 +299,22 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         // the following checks whether the current utilization rate against the new utilization rate
         // (including external assets available) exceeds a threshold and only updates interest if so.
         // With this enabled, it's obviously possible for there to be some level of "unfair" interest
-        // either being paid by borrowers or earned by suppliers, but the idea is this unfairness
+        // paid by borrowers and/or earned by suppliers, but the idea is this unfairness
         // should theoretically be negligible within some level of error and therefore it won't matter.
         // This is in place to support lower gas & more arbitrage volume through the pair since arbitrage
         // would many times only occur with small changes in asset supply or borrowed positions.
-        uint256 _currentUtilizationRate = _currentRateInfo.fullUtilizationRate;
+        uint256 _currentUtilizationRate = _prevUtilizationRate;
         uint256 _totalAssetsAvailable = totalAsset.totalAmount(address(externalAssetVault));
         uint256 _newUtilizationRate =
             _totalAssetsAvailable == 0 ? 0 : (UTIL_PREC * totalBorrow.amount) / _totalAssetsAvailable;
+        _prevUtilizationRate = _newUtilizationRate;
         uint256 _rateChange = _newUtilizationRate > _currentUtilizationRate
             ? _newUtilizationRate - _currentUtilizationRate
             : _currentUtilizationRate - _newUtilizationRate;
-        if (_rateChange < _currentUtilizationRate * minURChangeForExternalAddInterest / UTIL_PREC) {
+        if (
+            _currentUtilizationRate != 0
+                && _rateChange < _currentUtilizationRate * minURChangeForExternalAddInterest / UTIL_PREC
+        ) {
             emit SkipAddingInterest(_rateChange);
         } else {
             (, _interestEarned, _feesAmount, _feesShare, _currentRateInfo) = _addInterest();
