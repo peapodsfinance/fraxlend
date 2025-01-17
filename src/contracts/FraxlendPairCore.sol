@@ -307,7 +307,6 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         uint256 _totalAssetsAvailable = totalAsset.totalAmount(address(externalAssetVault));
         uint256 _newUtilizationRate =
             _totalAssetsAvailable == 0 ? 0 : (UTIL_PREC * totalBorrow.amount) / _totalAssetsAvailable;
-        _prevUtilizationRate = _newUtilizationRate;
         uint256 _rateChange = _newUtilizationRate > _currentUtilizationRate
             ? _newUtilizationRate - _currentUtilizationRate
             : _currentUtilizationRate - _newUtilizationRate;
@@ -452,6 +451,10 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
     {
         // Pull from storage and set default return values
         _currentRateInfo = currentRateInfo;
+
+        // store the current utilization rate as previous for next check
+        uint256 _totalAssetsAvailable = _totalAssetAvailable(totalAsset, totalBorrow, true);
+        _prevUtilizationRate = _totalAssetsAvailable == 0 ? 0 : (UTIL_PREC * totalBorrow.amount) / _totalAssetsAvailable;
 
         // Calc interest
         InterestCalculationResults memory _results = _calculateInterest(_currentRateInfo);
