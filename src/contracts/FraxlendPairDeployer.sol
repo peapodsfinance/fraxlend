@@ -128,7 +128,7 @@ contract FraxlendPairDeployer is Ownable {
         uint256 _length = IFraxlendPairRegistry(fraxlendPairRegistryAddress).deployedPairsLength();
         _name = string(
             abi.encodePacked(
-                "Fraxlend Interest Bearing ",
+                "Peapods Fraxlend Interest Bearing ",
                 IERC20(_asset).safeSymbol(),
                 " (",
                 IERC20(_collateral).safeName(),
