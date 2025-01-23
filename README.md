@@ -21,6 +21,11 @@ Fraxlend adheres to the EIP-4626: Tokenized Vault Standard, lenders are able to 
 - You will need to [install foundry](https://book.getfoundry.sh/getting-started/installation)
 - Install foundry submodules `git submodule init && git submodule update`
 
+# Setup for Peapods LVF
+
+- Deploy all core contracts `forge script/DeployCore.s.sol`
+- After deploying leverage factory in peapods core, set whitelist for said factory `forge script/SetWhitelistDeployerInCore.s.sol`
+
 Compilation
 
 - `forge build`

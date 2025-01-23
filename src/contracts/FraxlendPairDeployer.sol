@@ -293,8 +293,9 @@ contract FraxlendPairDeployer is Ownable {
             revert WhitelistedDeployersOnly();
         }
 
-        (address _asset, address _collateral,,,,,,,) =
-            abi.decode(_configData, (address, address, address, uint32, address, uint64, uint256, uint256, uint256));
+        (address _asset, address _collateral,,,,,,,,) = abi.decode(
+            _configData, (address, address, address, uint32, address, uint64, uint256, uint256, uint256, uint256)
+        );
 
         (string memory _name, string memory _symbol) = getNextNameSymbol(_asset, _collateral);
 

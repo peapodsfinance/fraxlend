@@ -191,10 +191,7 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
             symbolOfContract = _symbolOfContract;
             decimalsOfContract = _decimalsOfContract;
 
-            // Instantiate Interest
-            _addInterest();
-            // Instantiate Exchange Rate
-            _updateExchangeRate();
+            // NOTE: creator should addInterest() and updateExchangeRate() at end of processing
         }
     }
 

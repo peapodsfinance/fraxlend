@@ -6,6 +6,7 @@ import {console2} from "forge-std/console2.sol";
 import {ConstructorParams, FraxlendPairDeployer} from "../src/contracts/FraxlendPairDeployer.sol";
 import {FraxlendPairRegistry} from "../src/contracts/FraxlendPairRegistry.sol";
 import {FraxlendWhitelist} from "../src/contracts/FraxlendWhitelist.sol";
+import {FraxlendPair} from "../src/contracts/FraxlendPair.sol";
 
 contract DeployCore is Script {
     function setUp() public {}
@@ -33,6 +34,7 @@ contract DeployCore is Script {
         address[] memory _am = new address[](1);
         _am[0] = address(frDeployer);
         registry.setDeployers(_am, true);
+        frDeployer.setCreationCode(type(FraxlendPair).creationCode);
 
         console2.log("FraxlendWhitelist:", address(whitelist));
         console2.log("FraxlendPairRegistry:", address(registry));
