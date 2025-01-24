@@ -163,7 +163,7 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
             assetContract = IERC20(_asset);
             collateralContract = IERC20(_collateral);
 
-            currentRateInfo.feeToProtocolRate = 5e5; // 5% 
+            currentRateInfo.feeToProtocolRate = 5e3; // 5%
             currentRateInfo.fullUtilizationRate = _fullUtilizationRate;
             currentRateInfo.lastTimestamp = uint64(block.timestamp - 1);
             currentRateInfo.lastBlock = uint32(block.number - 1);
