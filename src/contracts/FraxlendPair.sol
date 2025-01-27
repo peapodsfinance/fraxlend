@@ -281,51 +281,51 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
 
     bool public isOracleSetterRevoked;
 
-    // /// @notice The ```RevokeOracleSetter``` event is emitted when the oracle setter is revoked
-    // event RevokeOracleInfoSetter();
+    /// @notice The ```RevokeOracleSetter``` event is emitted when the oracle setter is revoked
+    event RevokeOracleInfoSetter();
 
-    // /// @notice The ```revokeOracleSetter``` function revokes the oracle setter
-    // function revokeOracleInfoSetter() external {
-    //     _requireTimelock();
-    //     isOracleSetterRevoked = true;
-    //     emit RevokeOracleInfoSetter();
-    // }
+    /// @notice The ```revokeOracleSetter``` function revokes the oracle setter
+    function revokeOracleInfoSetter() external {
+        _requireTimelock();
+        isOracleSetterRevoked = true;
+        emit RevokeOracleInfoSetter();
+    }
 
-    // /// @notice The ```SetOracleInfo``` event is emitted when the oracle info (address and max deviation) is set
-    // /// @param oldOracle The old oracle address
-    // /// @param oldMaxOracleDeviation The old max oracle deviation
-    // /// @param newOracle The new oracle address
-    // /// @param newMaxOracleDeviation The new max oracle deviation
-    // event SetOracleInfo(
-    //     address oldOracle, uint32 oldMaxOracleDeviation, address newOracle, uint32 newMaxOracleDeviation
-    // );
+    /// @notice The ```SetOracleInfo``` event is emitted when the oracle info (address and max deviation) is set
+    /// @param oldOracle The old oracle address
+    /// @param oldMaxOracleDeviation The old max oracle deviation
+    /// @param newOracle The new oracle address
+    /// @param newMaxOracleDeviation The new max oracle deviation
+    event SetOracleInfo(
+        address oldOracle, uint32 oldMaxOracleDeviation, address newOracle, uint32 newMaxOracleDeviation
+    );
 
-    // /// @notice The ```setOracleInfo``` function sets the oracle data
-    // /// @param _newOracle The new oracle address
-    // /// @param _newMaxOracleDeviation The new max oracle deviation
-    // function setOracle(address _newOracle, uint32 _newMaxOracleDeviation) external {
-    //     _requireTimelock();
-    //     if (isOracleSetterRevoked) revert SetterRevoked();
-    //     ExchangeRateInfo memory _exchangeRateInfo = exchangeRateInfo;
-    //     emit SetOracleInfo(
-    //         _exchangeRateInfo.oracle, _exchangeRateInfo.maxOracleDeviation, _newOracle, _newMaxOracleDeviation
-    //     );
-    //     _exchangeRateInfo.oracle = _newOracle;
-    //     _exchangeRateInfo.maxOracleDeviation = _newMaxOracleDeviation;
-    //     exchangeRateInfo = _exchangeRateInfo;
-    // }
+    /// @notice The ```setOracleInfo``` function sets the oracle data
+    /// @param _newOracle The new oracle address
+    /// @param _newMaxOracleDeviation The new max oracle deviation
+    function setOracle(address _newOracle, uint32 _newMaxOracleDeviation) external {
+        _requireTimelock();
+        if (isOracleSetterRevoked) revert SetterRevoked();
+        ExchangeRateInfo memory _exchangeRateInfo = exchangeRateInfo;
+        emit SetOracleInfo(
+            _exchangeRateInfo.oracle, _exchangeRateInfo.maxOracleDeviation, _newOracle, _newMaxOracleDeviation
+        );
+        _exchangeRateInfo.oracle = _newOracle;
+        _exchangeRateInfo.maxOracleDeviation = _newMaxOracleDeviation;
+        exchangeRateInfo = _exchangeRateInfo;
+    }
 
     bool public isMaxLTVSetterRevoked;
 
-    // /// @notice The ```RevokeMaxLTVSetter``` event is emitted when the max LTV setter is revoked
-    // event RevokeMaxLTVSetter();
+    /// @notice The ```RevokeMaxLTVSetter``` event is emitted when the max LTV setter is revoked
+    event RevokeMaxLTVSetter();
 
-    // /// @notice The ```revokeMaxLTVSetter``` function revokes the max LTV setter
-    // function revokeMaxLTVSetter() external {
-    //     _requireTimelock();
-    //     isMaxLTVSetterRevoked = true;
-    //     emit RevokeMaxLTVSetter();
-    // }
+    /// @notice The ```revokeMaxLTVSetter``` function revokes the max LTV setter
+    function revokeMaxLTVSetter() external {
+        _requireTimelock();
+        isMaxLTVSetterRevoked = true;
+        emit RevokeMaxLTVSetter();
+    }
 
     /// @notice The ```SetMaxLTV``` event is emitted when the max LTV is set
     /// @param oldMaxLTV The old max LTV
@@ -369,58 +369,58 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
 
     bool public isLiquidationFeeSetterRevoked;
 
-    // /// @notice The ```RevokeLiquidationFeeSetter``` event is emitted when the liquidation fee setter is revoked
-    // event RevokeLiquidationFeeSetter();
+    /// @notice The ```RevokeLiquidationFeeSetter``` event is emitted when the liquidation fee setter is revoked
+    event RevokeLiquidationFeeSetter();
 
-    // /// @notice The ```revokeLiquidationFeeSetter``` function revokes the liquidation fee setter
-    // function revokeLiquidationFeeSetter() external {
-    //     _requireTimelock();
-    //     isLiquidationFeeSetterRevoked = true;
-    //     emit RevokeLiquidationFeeSetter();
-    // }
+    /// @notice The ```revokeLiquidationFeeSetter``` function revokes the liquidation fee setter
+    function revokeLiquidationFeeSetter() external {
+        _requireTimelock();
+        isLiquidationFeeSetterRevoked = true;
+        emit RevokeLiquidationFeeSetter();
+    }
 
-    // /// @notice The ```SetLiquidationFees``` event is emitted when the liquidation fees are set
-    // /// @param oldCleanLiquidationFee The old clean liquidation fee
-    // /// @param oldDirtyLiquidationFee The old dirty liquidation fee
-    // /// @param oldProtocolLiquidationFee The old protocol liquidation fee
-    // /// @param newCleanLiquidationFee The new clean liquidation fee
-    // /// @param newDirtyLiquidationFee The new dirty liquidation fee
-    // /// @param newProtocolLiquidationFee The new protocol liquidation fee
-    // event SetLiquidationFees(
-    //     uint256 oldCleanLiquidationFee,
-    //     uint256 oldDirtyLiquidationFee,
-    //     uint256 oldProtocolLiquidationFee,
-    //     uint256 newCleanLiquidationFee,
-    //     uint256 newDirtyLiquidationFee,
-    //     uint256 newProtocolLiquidationFee
-    // );
+    /// @notice The ```SetLiquidationFees``` event is emitted when the liquidation fees are set
+    /// @param oldCleanLiquidationFee The old clean liquidation fee
+    /// @param oldDirtyLiquidationFee The old dirty liquidation fee
+    /// @param oldProtocolLiquidationFee The old protocol liquidation fee
+    /// @param newCleanLiquidationFee The new clean liquidation fee
+    /// @param newDirtyLiquidationFee The new dirty liquidation fee
+    /// @param newProtocolLiquidationFee The new protocol liquidation fee
+    event SetLiquidationFees(
+        uint256 oldCleanLiquidationFee,
+        uint256 oldDirtyLiquidationFee,
+        uint256 oldProtocolLiquidationFee,
+        uint256 newCleanLiquidationFee,
+        uint256 newDirtyLiquidationFee,
+        uint256 newProtocolLiquidationFee
+    );
 
-    // /// @notice The ```setLiquidationFees``` function sets the liquidation fees
-    // /// @param _newCleanLiquidationFee The new clean liquidation fee
-    // /// @param _newDirtyLiquidationFee The new dirty liquidation fee
-    // /// @param _newProtocolLiquidationFee The new protocol liquidation fee
-    // /// @param _newMinCollateralRequiredOnDirtyLiquidation The new min collateral required to leave on dirty liquidation
-    // function setLiquidationFees(
-    //     uint256 _newCleanLiquidationFee,
-    //     uint256 _newDirtyLiquidationFee,
-    //     uint256 _newProtocolLiquidationFee,
-    //     uint256 _newMinCollateralRequiredOnDirtyLiquidation
-    // ) external {
-    //     _requireTimelock();
-    //     if (isLiquidationFeeSetterRevoked) revert SetterRevoked();
-    //     emit SetLiquidationFees(
-    //         cleanLiquidationFee,
-    //         dirtyLiquidationFee,
-    //         protocolLiquidationFee,
-    //         _newCleanLiquidationFee,
-    //         _newDirtyLiquidationFee,
-    //         _newProtocolLiquidationFee
-    //     );
-    //     cleanLiquidationFee = _newCleanLiquidationFee;
-    //     dirtyLiquidationFee = _newDirtyLiquidationFee;
-    //     protocolLiquidationFee = _newProtocolLiquidationFee;
-    //     minCollateralRequiredOnDirtyLiquidation = _newMinCollateralRequiredOnDirtyLiquidation;
-    // }
+    /// @notice The ```setLiquidationFees``` function sets the liquidation fees
+    /// @param _newCleanLiquidationFee The new clean liquidation fee
+    /// @param _newDirtyLiquidationFee The new dirty liquidation fee
+    /// @param _newProtocolLiquidationFee The new protocol liquidation fee
+    /// @param _newMinCollateralRequiredOnDirtyLiquidation The new min collateral required to leave on dirty liquidation
+    function setLiquidationFees(
+        uint256 _newCleanLiquidationFee,
+        uint256 _newDirtyLiquidationFee,
+        uint256 _newProtocolLiquidationFee,
+        uint256 _newMinCollateralRequiredOnDirtyLiquidation
+    ) external {
+        _requireTimelock();
+        if (isLiquidationFeeSetterRevoked) revert SetterRevoked();
+        emit SetLiquidationFees(
+            cleanLiquidationFee,
+            dirtyLiquidationFee,
+            protocolLiquidationFee,
+            _newCleanLiquidationFee,
+            _newDirtyLiquidationFee,
+            _newProtocolLiquidationFee
+        );
+        cleanLiquidationFee = _newCleanLiquidationFee;
+        dirtyLiquidationFee = _newDirtyLiquidationFee;
+        protocolLiquidationFee = _newProtocolLiquidationFee;
+        minCollateralRequiredOnDirtyLiquidation = _newMinCollateralRequiredOnDirtyLiquidation;
+    }
 
     /// @notice The ```ChangeFee``` event first when the fee is changed
     /// @param newFee The new fee
@@ -526,20 +526,20 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
         emit UpdatedMinURChange(_newURChange);
     }
 
-    // /// @notice The ```pauseBorrow``` function sets borrow limit to 0
-    // function pauseBorrow() external {
-    //     _requireProtocolOrOwner();
-    //     if (isBorrowAccessControlRevoked) revert AccessControlRevoked();
-    //     _setBorrowLimit(0);
-    // }
+    /// @notice The ```pauseBorrow``` function sets borrow limit to 0
+    function pauseBorrow() external {
+        _requireProtocolOrOwner();
+        if (isBorrowAccessControlRevoked) revert AccessControlRevoked();
+        _setBorrowLimit(0);
+    }
 
-    // /// @notice The ```setBorrowLimit``` function sets the borrow limit
-    // /// @param _limit The new borrow limit
-    // function setBorrowLimit(uint256 _limit) external {
-    //     _requireTimelockOrOwner();
-    //     if (isBorrowAccessControlRevoked) revert AccessControlRevoked();
-    //     _setBorrowLimit(_limit);
-    // }
+    /// @notice The ```setBorrowLimit``` function sets the borrow limit
+    /// @param _limit The new borrow limit
+    function setBorrowLimit(uint256 _limit) external {
+        _requireTimelockOrOwner();
+        if (isBorrowAccessControlRevoked) revert AccessControlRevoked();
+        _setBorrowLimit(_limit);
+    }
 
     // /// @notice The ```revokeBorrowLimitAccessControl``` function revokes borrow limit access control
     // /// @param _borrowLimit The new borrow limit
@@ -548,20 +548,20 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
     //     _revokeBorrowAccessControl(_borrowLimit);
     // }
 
-    // /// @notice The ```pauseDeposit``` function pauses deposit functionality
-    // function pauseDeposit() external {
-    //     _requireProtocolOrOwner();
-    //     if (isDepositAccessControlRevoked) revert AccessControlRevoked();
-    //     _setDepositLimit(0);
-    // }
+    /// @notice The ```pauseDeposit``` function pauses deposit functionality
+    function pauseDeposit() external {
+        _requireProtocolOrOwner();
+        if (isDepositAccessControlRevoked) revert AccessControlRevoked();
+        _setDepositLimit(0);
+    }
 
-    // /// @notice The ```setDepositLimit``` function sets the deposit limit
-    // /// @param _limit The new deposit limit
-    // function setDepositLimit(uint256 _limit) external {
-    //     _requireTimelockOrOwner();
-    //     if (isDepositAccessControlRevoked) revert AccessControlRevoked();
-    //     _setDepositLimit(_limit);
-    // }
+    /// @notice The ```setDepositLimit``` function sets the deposit limit
+    /// @param _limit The new deposit limit
+    function setDepositLimit(uint256 _limit) external {
+        _requireTimelockOrOwner();
+        if (isDepositAccessControlRevoked) revert AccessControlRevoked();
+        _setDepositLimit(_limit);
+    }
 
     // /// @notice The ```revokeDepositLimitAccessControl``` function revokes deposit limit access control
     // /// @param _depositLimit The new deposit limit
@@ -588,17 +588,17 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
     //     _revokeRepayAccessControl();
     // }
 
-    // /// @notice The ```pauseWithdraw``` function pauses withdraw functionality
-    // /// @param _isPaused The new pause state
-    // function pauseWithdraw(bool _isPaused) external {
-    //     if (_isPaused) {
-    //         _requireProtocolOrOwner();
-    //     } else {
-    //         _requireTimelockOrOwner();
-    //     }
-    //     if (isWithdrawAccessControlRevoked) revert AccessControlRevoked();
-    //     _pauseWithdraw(_isPaused);
-    // }
+    /// @notice The ```pauseWithdraw``` function pauses withdraw functionality
+    /// @param _isPaused The new pause state
+    function pauseWithdraw(bool _isPaused) external {
+        if (_isPaused) {
+            _requireProtocolOrOwner();
+        } else {
+            _requireTimelockOrOwner();
+        }
+        if (isWithdrawAccessControlRevoked) revert AccessControlRevoked();
+        _pauseWithdraw(_isPaused);
+    }
 
     // /// @notice The ```revokeWithdrawAccessControl``` function revokes withdraw access control
     // function revokeWithdrawAccessControl() external {
