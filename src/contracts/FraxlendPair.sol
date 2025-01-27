@@ -526,20 +526,20 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
         emit UpdatedMinURChange(_newURChange);
     }
 
-    /// @notice The ```pauseBorrow``` function sets borrow limit to 0
-    function pauseBorrow() external {
-        _requireProtocolOrOwner();
-        if (isBorrowAccessControlRevoked) revert AccessControlRevoked();
-        _setBorrowLimit(0);
-    }
+    // /// @notice The ```pauseBorrow``` function sets borrow limit to 0
+    // function pauseBorrow() external {
+    //     _requireProtocolOrOwner();
+    //     if (isBorrowAccessControlRevoked) revert AccessControlRevoked();
+    //     _setBorrowLimit(0);
+    // }
 
-    /// @notice The ```setBorrowLimit``` function sets the borrow limit
-    /// @param _limit The new borrow limit
-    function setBorrowLimit(uint256 _limit) external {
-        _requireTimelockOrOwner();
-        if (isBorrowAccessControlRevoked) revert AccessControlRevoked();
-        _setBorrowLimit(_limit);
-    }
+    // /// @notice The ```setBorrowLimit``` function sets the borrow limit
+    // /// @param _limit The new borrow limit
+    // function setBorrowLimit(uint256 _limit) external {
+    //     _requireTimelockOrOwner();
+    //     if (isBorrowAccessControlRevoked) revert AccessControlRevoked();
+    //     _setBorrowLimit(_limit);
+    // }
 
     // /// @notice The ```revokeBorrowLimitAccessControl``` function revokes borrow limit access control
     // /// @param _borrowLimit The new borrow limit
@@ -548,20 +548,20 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
     //     _revokeBorrowAccessControl(_borrowLimit);
     // }
 
-    /// @notice The ```pauseDeposit``` function pauses deposit functionality
-    function pauseDeposit() external {
-        _requireProtocolOrOwner();
-        if (isDepositAccessControlRevoked) revert AccessControlRevoked();
-        _setDepositLimit(0);
-    }
+    // /// @notice The ```pauseDeposit``` function pauses deposit functionality
+    // function pauseDeposit() external {
+    //     _requireProtocolOrOwner();
+    //     if (isDepositAccessControlRevoked) revert AccessControlRevoked();
+    //     _setDepositLimit(0);
+    // }
 
-    /// @notice The ```setDepositLimit``` function sets the deposit limit
-    /// @param _limit The new deposit limit
-    function setDepositLimit(uint256 _limit) external {
-        _requireTimelockOrOwner();
-        if (isDepositAccessControlRevoked) revert AccessControlRevoked();
-        _setDepositLimit(_limit);
-    }
+    // /// @notice The ```setDepositLimit``` function sets the deposit limit
+    // /// @param _limit The new deposit limit
+    // function setDepositLimit(uint256 _limit) external {
+    //     _requireTimelockOrOwner();
+    //     if (isDepositAccessControlRevoked) revert AccessControlRevoked();
+    //     _setDepositLimit(_limit);
+    // }
 
     // /// @notice The ```revokeDepositLimitAccessControl``` function revokes deposit limit access control
     // /// @param _depositLimit The new deposit limit
@@ -588,17 +588,17 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
     //     _revokeRepayAccessControl();
     // }
 
-    /// @notice The ```pauseWithdraw``` function pauses withdraw functionality
-    /// @param _isPaused The new pause state
-    function pauseWithdraw(bool _isPaused) external {
-        if (_isPaused) {
-            _requireProtocolOrOwner();
-        } else {
-            _requireTimelockOrOwner();
-        }
-        if (isWithdrawAccessControlRevoked) revert AccessControlRevoked();
-        _pauseWithdraw(_isPaused);
-    }
+    // /// @notice The ```pauseWithdraw``` function pauses withdraw functionality
+    // /// @param _isPaused The new pause state
+    // function pauseWithdraw(bool _isPaused) external {
+    //     if (_isPaused) {
+    //         _requireProtocolOrOwner();
+    //     } else {
+    //         _requireTimelockOrOwner();
+    //     }
+    //     if (isWithdrawAccessControlRevoked) revert AccessControlRevoked();
+    //     _pauseWithdraw(_isPaused);
+    // }
 
     // /// @notice The ```revokeWithdrawAccessControl``` function revokes withdraw access control
     // function revokeWithdrawAccessControl() external {
