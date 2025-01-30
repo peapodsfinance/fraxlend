@@ -120,34 +120,12 @@ contract FraxlendPairDeployer is Ownable {
         _deployedPairs = deployedPairsArray;
     }
 
-    function getNextNameSymbol(address _asset, address _collateral)
-        public
-        view
-        returns (string memory _name, string memory _symbol)
-    {
+    function getNextNameSymbol(address _asset) public view returns (string memory _name, string memory _symbol) {
         uint256 _length = IFraxlendPairRegistry(fraxlendPairRegistryAddress).deployedPairsLength();
         _name = string(
-            abi.encodePacked(
-                "Peapods Fraxlend Interest Bearing ",
-                IERC20(_asset).safeSymbol(),
-                " (",
-                IERC20(_collateral).safeName(),
-                ")",
-                " - ",
-                (_length + 1).toString()
-            )
+            abi.encodePacked("Peapods Interest Bearing ", IERC20(_asset).safeSymbol(), " - ", (_length + 1).toString())
         );
-        _symbol = string(
-            abi.encodePacked(
-                "f",
-                IERC20(_asset).safeSymbol(),
-                "(",
-                IERC20(_collateral).safeSymbol(),
-                ")",
-                "-",
-                (_length + 1).toString()
-            )
-        );
+        _symbol = string(abi.encodePacked("pf", IERC20(_asset).safeSymbol(), "-", (_length + 1).toString()));
     }
 
     // ============================================================================================
@@ -297,7 +275,7 @@ contract FraxlendPairDeployer is Ownable {
             _configData, (address, address, address, uint32, address, uint64, uint256, uint256, uint256, uint256)
         );
 
-        (string memory _name, string memory _symbol) = getNextNameSymbol(_asset, _collateral);
+        (string memory _name, string memory _symbol) = getNextNameSymbol(_asset);
 
         bytes memory _immutables = abi.encode(circuitBreakerAddress, comptrollerAddress, timelockAddress);
         bytes memory _customConfigData = abi.encode(_name, _symbol, IERC20(_asset).safeDecimals());
