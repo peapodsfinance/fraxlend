@@ -212,23 +212,23 @@ abstract contract FraxlendPairAccessControl is Timelock2Step, Ownable2Step, Frax
         _setExternalAssetVault(vault);
     }
 
-    // /// @notice The ```SetCircuitBreaker``` event is emitted when the circuit breaker address is set
-    // /// @param oldCircuitBreaker The old circuit breaker address
-    // /// @param newCircuitBreaker The new circuit breaker address
-    // event SetCircuitBreaker(address oldCircuitBreaker, address newCircuitBreaker);
+    /// @notice The ```SetCircuitBreaker``` event is emitted when the circuit breaker address is set
+    /// @param oldCircuitBreaker The old circuit breaker address
+    /// @param newCircuitBreaker The new circuit breaker address
+    event SetCircuitBreaker(address oldCircuitBreaker, address newCircuitBreaker);
 
-    // /// @notice The ```_setCircuitBreaker``` function is called to set the circuit breaker address
-    // /// @param _newCircuitBreaker The new circuit breaker address
-    // function _setCircuitBreaker(address _newCircuitBreaker) internal {
-    //     address oldCircuitBreaker = circuitBreakerAddress;
-    //     circuitBreakerAddress = _newCircuitBreaker;
-    //     emit SetCircuitBreaker(oldCircuitBreaker, _newCircuitBreaker);
-    // }
+    /// @notice The ```_setCircuitBreaker``` function is called to set the circuit breaker address
+    /// @param _newCircuitBreaker The new circuit breaker address
+    function _setCircuitBreaker(address _newCircuitBreaker) internal {
+        address oldCircuitBreaker = circuitBreakerAddress;
+        circuitBreakerAddress = _newCircuitBreaker;
+        emit SetCircuitBreaker(oldCircuitBreaker, _newCircuitBreaker);
+    }
 
-    // /// @notice The ```setCircuitBreaker``` function is called to set the circuit breaker address
-    // /// @param _newCircuitBreaker The new circuit breaker address
-    // function setCircuitBreaker(address _newCircuitBreaker) external virtual {
-    //     _requireTimelock();
-    //     _setCircuitBreaker(_newCircuitBreaker);
-    // }
+    /// @notice The ```setCircuitBreaker``` function is called to set the circuit breaker address
+    /// @param _newCircuitBreaker The new circuit breaker address
+    function setCircuitBreaker(address _newCircuitBreaker) external virtual {
+        _requireTimelock();
+        _setCircuitBreaker(_newCircuitBreaker);
+    }
 }
