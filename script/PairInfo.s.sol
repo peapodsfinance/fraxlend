@@ -34,6 +34,7 @@ contract PairInfo is Script {
             : (FraxlendPair(pair).UTIL_PREC() * _totalBorrow.amount) / _totalAssetsAvailable;
 
         // Log the results
+        console2.log("Owner:", FraxlendPair(pair).owner());
         console2.log("Rate contract:", rateContract);
         console2.log("protocolLiquidationFee:", _protLiqFee);
         console2.log("currentRateInfo.feeToProtocolRate:", feeToProtocolRate);

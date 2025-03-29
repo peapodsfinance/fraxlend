@@ -219,7 +219,7 @@ contract FraxlendPairDeployer is Ownable {
     // ============================================================================================
 
     /// @notice The ```_deploy``` function is an internal function with deploys the pair
-    /// @param _configData abi.encode(address _asset, address _collateral, address _oracle, uint32 _maxOracleDeviation, address _rateContract, uint64 _fullUtilizationRate, uint256 _maxLTV, uint256 _cleanLiquidationFee, uint256 _dirtyLiquidationFee, uint256 _protocolLiquidationFee)
+    /// @param _configData abi.encode(address _asset, address _collateral, address _oracle, uint32 _maxOracleDeviation, address _rateContract, uint64 _fullUtilizationRate, uint256 _maxLTV, uint256 _liquidationFee, uint256 _protocolLiquidationFee)
     /// @param _immutables abi.encode(address _circuitBreakerAddress, address _comptrollerAddress, address _timelockAddress)
     /// @param _customConfigData abi.encode(string memory _nameOfContract, string memory _symbolOfContract, uint8 _decimalsOfContract)
     /// @return _pairAddress The address to which the Pair was deployed
@@ -264,16 +264,15 @@ contract FraxlendPairDeployer is Ownable {
     // ============================================================================================
 
     /// @notice The ```deploy``` function allows the deployment of a FraxlendPair with default values
-    /// @param _configData abi.encode(address _asset, address _collateral, address _oracle, uint32 _maxOracleDeviation, address _rateContract, uint64 _fullUtilizationRate, uint256 _maxLTV, uint256 _cleanLiquidationFee, uint256 _dirtyLiquidationFee, uint256 _protocolLiquidationFee)
+    /// @param _configData abi.encode(address _asset, address _collateral, address _oracle, uint32 _maxOracleDeviation, address _rateContract, uint64 _fullUtilizationRate, uint256 _maxLTV, uint256 _liquidationFee, uint256 _protocolLiquidationFee)
     /// @return _pairAddress The address to which the Pair was deployed
     function deploy(bytes memory _configData) external returns (address _pairAddress) {
         if (!IFraxlendWhitelist(fraxlendWhitelistAddress).fraxlendDeployerWhitelist(msg.sender)) {
             revert WhitelistedDeployersOnly();
         }
 
-        (address _asset, address _collateral,,,,,,,,) = abi.decode(
-            _configData, (address, address, address, uint32, address, uint64, uint256, uint256, uint256, uint256)
-        );
+        (address _asset, address _collateral,,,,,,,) =
+            abi.decode(_configData, (address, address, address, uint32, address, uint64, uint256, uint256, uint256));
 
         (string memory _name, string memory _symbol) = getNextNameSymbol(_asset);
 
