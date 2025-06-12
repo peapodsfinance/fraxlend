@@ -1,4 +1,5 @@
 [profile.default]
+evm_version = 'cancun'
 src = 'src/contracts'
 test = 'src/test'
 out = 'out'

@@ -281,39 +281,39 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
 
     bool public isOracleSetterRevoked;
 
-    // /// @notice The ```RevokeOracleSetter``` event is emitted when the oracle setter is revoked
-    // event RevokeOracleInfoSetter();
+    /// @notice The ```RevokeOracleSetter``` event is emitted when the oracle setter is revoked
+    event RevokeOracleInfoSetter();
 
-    // /// @notice The ```revokeOracleSetter``` function revokes the oracle setter
-    // function revokeOracleInfoSetter() external {
-    //     _requireTimelock();
-    //     isOracleSetterRevoked = true;
-    //     emit RevokeOracleInfoSetter();
-    // }
+    /// @notice The ```revokeOracleSetter``` function revokes the oracle setter
+    function revokeOracleInfoSetter() external {
+        _requireTimelock();
+        isOracleSetterRevoked = true;
+        emit RevokeOracleInfoSetter();
+    }
 
-    // /// @notice The ```SetOracleInfo``` event is emitted when the oracle info (address and max deviation) is set
-    // /// @param oldOracle The old oracle address
-    // /// @param oldMaxOracleDeviation The old max oracle deviation
-    // /// @param newOracle The new oracle address
-    // /// @param newMaxOracleDeviation The new max oracle deviation
-    // event SetOracleInfo(
-    //     address oldOracle, uint32 oldMaxOracleDeviation, address newOracle, uint32 newMaxOracleDeviation
-    // );
+    /// @notice The ```SetOracleInfo``` event is emitted when the oracle info (address and max deviation) is set
+    /// @param oldOracle The old oracle address
+    /// @param oldMaxOracleDeviation The old max oracle deviation
+    /// @param newOracle The new oracle address
+    /// @param newMaxOracleDeviation The new max oracle deviation
+    event SetOracleInfo(
+        address oldOracle, uint32 oldMaxOracleDeviation, address newOracle, uint32 newMaxOracleDeviation
+    );
 
-    // /// @notice The ```setOracleInfo``` function sets the oracle data
-    // /// @param _newOracle The new oracle address
-    // /// @param _newMaxOracleDeviation The new max oracle deviation
-    // function setOracle(address _newOracle, uint32 _newMaxOracleDeviation) external {
-    //     _requireTimelock();
-    //     if (isOracleSetterRevoked) revert SetterRevoked();
-    //     ExchangeRateInfo memory _exchangeRateInfo = exchangeRateInfo;
-    //     emit SetOracleInfo(
-    //         _exchangeRateInfo.oracle, _exchangeRateInfo.maxOracleDeviation, _newOracle, _newMaxOracleDeviation
-    //     );
-    //     _exchangeRateInfo.oracle = _newOracle;
-    //     _exchangeRateInfo.maxOracleDeviation = _newMaxOracleDeviation;
-    //     exchangeRateInfo = _exchangeRateInfo;
-    // }
+    /// @notice The ```setOracleInfo``` function sets the oracle data
+    /// @param _newOracle The new oracle address
+    /// @param _newMaxOracleDeviation The new max oracle deviation
+    function setOracle(address _newOracle, uint32 _newMaxOracleDeviation) external {
+        _requireTimelock();
+        if (isOracleSetterRevoked) revert SetterRevoked();
+        ExchangeRateInfo memory _exchangeRateInfo = exchangeRateInfo;
+        emit SetOracleInfo(
+            _exchangeRateInfo.oracle, _exchangeRateInfo.maxOracleDeviation, _newOracle, _newMaxOracleDeviation
+        );
+        _exchangeRateInfo.oracle = _newOracle;
+        _exchangeRateInfo.maxOracleDeviation = _newMaxOracleDeviation;
+        exchangeRateInfo = _exchangeRateInfo;
+    }
 
     bool public isMaxLTVSetterRevoked;
 
