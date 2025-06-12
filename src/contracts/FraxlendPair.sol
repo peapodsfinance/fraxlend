@@ -369,58 +369,58 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
 
     bool public isLiquidationFeeSetterRevoked;
 
-    // /// @notice The ```RevokeLiquidationFeeSetter``` event is emitted when the liquidation fee setter is revoked
-    // event RevokeLiquidationFeeSetter();
+    /// @notice The ```RevokeLiquidationFeeSetter``` event is emitted when the liquidation fee setter is revoked
+    event RevokeLiquidationFeeSetter();
 
-    // /// @notice The ```revokeLiquidationFeeSetter``` function revokes the liquidation fee setter
-    // function revokeLiquidationFeeSetter() external {
-    //     _requireTimelock();
-    //     isLiquidationFeeSetterRevoked = true;
-    //     emit RevokeLiquidationFeeSetter();
-    // }
+    /// @notice The ```revokeLiquidationFeeSetter``` function revokes the liquidation fee setter
+    function revokeLiquidationFeeSetter() external {
+        _requireTimelock();
+        isLiquidationFeeSetterRevoked = true;
+        emit RevokeLiquidationFeeSetter();
+    }
 
-    // /// @notice The ```SetLiquidationFees``` event is emitted when the liquidation fees are set
-    // /// @param oldCleanLiquidationFee The old clean liquidation fee
-    // /// @param oldDirtyLiquidationFee The old dirty liquidation fee
-    // /// @param oldProtocolLiquidationFee The old protocol liquidation fee
-    // /// @param newCleanLiquidationFee The new clean liquidation fee
-    // /// @param newDirtyLiquidationFee The new dirty liquidation fee
-    // /// @param newProtocolLiquidationFee The new protocol liquidation fee
-    // event SetLiquidationFees(
-    //     uint256 oldCleanLiquidationFee,
-    //     uint256 oldDirtyLiquidationFee,
-    //     uint256 oldProtocolLiquidationFee,
-    //     uint256 newCleanLiquidationFee,
-    //     uint256 newDirtyLiquidationFee,
-    //     uint256 newProtocolLiquidationFee
-    // );
+    /// @notice The ```SetLiquidationFees``` event is emitted when the liquidation fees are set
+    /// @param oldCleanLiquidationFee The old clean liquidation fee
+    /// @param oldDirtyLiquidationFee The old dirty liquidation fee
+    /// @param oldProtocolLiquidationFee The old protocol liquidation fee
+    /// @param newCleanLiquidationFee The new clean liquidation fee
+    /// @param newDirtyLiquidationFee The new dirty liquidation fee
+    /// @param newProtocolLiquidationFee The new protocol liquidation fee
+    event SetLiquidationFees(
+        uint256 oldCleanLiquidationFee,
+        uint256 oldDirtyLiquidationFee,
+        uint256 oldProtocolLiquidationFee,
+        uint256 newCleanLiquidationFee,
+        uint256 newDirtyLiquidationFee,
+        uint256 newProtocolLiquidationFee
+    );
 
-    // /// @notice The ```setLiquidationFees``` function sets the liquidation fees
-    // /// @param _newCleanLiquidationFee The new clean liquidation fee
-    // /// @param _newDirtyLiquidationFee The new dirty liquidation fee
-    // /// @param _newProtocolLiquidationFee The new protocol liquidation fee
-    // /// @param _newMinCollateralRequiredOnDirtyLiquidation The new min collateral required to leave on dirty liquidation
-    // function setLiquidationFees(
-    //     uint256 _newCleanLiquidationFee,
-    //     uint256 _newDirtyLiquidationFee,
-    //     uint256 _newProtocolLiquidationFee,
-    //     uint256 _newMinCollateralRequiredOnDirtyLiquidation
-    // ) external {
-    //     _requireTimelock();
-    //     if (isLiquidationFeeSetterRevoked) revert SetterRevoked();
-    //     emit SetLiquidationFees(
-    //         cleanLiquidationFee,
-    //         dirtyLiquidationFee,
-    //         protocolLiquidationFee,
-    //         _newCleanLiquidationFee,
-    //         _newDirtyLiquidationFee,
-    //         _newProtocolLiquidationFee
-    //     );
-    //     cleanLiquidationFee = _newCleanLiquidationFee;
-    //     dirtyLiquidationFee = _newDirtyLiquidationFee;
-    //     protocolLiquidationFee = _newProtocolLiquidationFee;
-    //     minCollateralRequiredOnDirtyLiquidation = _newMinCollateralRequiredOnDirtyLiquidation;
-    // }
+    /// @notice The ```setLiquidationFees``` function sets the liquidation fees
+    /// @param _newCleanLiquidationFee The new clean liquidation fee
+    /// @param _newDirtyLiquidationFee The new dirty liquidation fee
+    /// @param _newProtocolLiquidationFee The new protocol liquidation fee
+    /// @param _newMinCollateralRequiredOnDirtyLiquidation The new min collateral required to leave on dirty liquidation
+    function setLiquidationFees(
+        uint256 _newCleanLiquidationFee,
+        uint256 _newDirtyLiquidationFee,
+        uint256 _newProtocolLiquidationFee,
+        uint256 _newMinCollateralRequiredOnDirtyLiquidation
+    ) external {
+        _requireTimelock();
+        if (isLiquidationFeeSetterRevoked) revert SetterRevoked();
+        emit SetLiquidationFees(
+            cleanLiquidationFee,
+            dirtyLiquidationFee,
+            protocolLiquidationFee,
+            _newCleanLiquidationFee,
+            _newDirtyLiquidationFee,
+            _newProtocolLiquidationFee
+        );
+        cleanLiquidationFee = _newCleanLiquidationFee;
+        dirtyLiquidationFee = _newDirtyLiquidationFee;
+        protocolLiquidationFee = _newProtocolLiquidationFee;
+        minCollateralRequiredOnDirtyLiquidation = _newMinCollateralRequiredOnDirtyLiquidation;
+    }
 
     /// @notice The ```ChangeFee``` event first when the fee is changed
     /// @param newFee The new fee
@@ -526,49 +526,49 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
         emit UpdatedMinURChange(_newURChange);
     }
 
-    // /// @notice The ```pauseBorrow``` function sets borrow limit to 0
-    // function pauseBorrow() external {
-    //     _requireProtocolOrOwner();
-    //     if (isBorrowAccessControlRevoked) revert AccessControlRevoked();
-    //     _setBorrowLimit(0);
-    // }
+    /// @notice The ```pauseBorrow``` function sets borrow limit to 0
+    function pauseBorrow() external {
+        _requireProtocolOrOwner();
+        if (isBorrowAccessControlRevoked) revert AccessControlRevoked();
+        _setBorrowLimit(0);
+    }
 
-    // /// @notice The ```setBorrowLimit``` function sets the borrow limit
-    // /// @param _limit The new borrow limit
-    // function setBorrowLimit(uint256 _limit) external {
-    //     _requireTimelockOrOwner();
-    //     if (isBorrowAccessControlRevoked) revert AccessControlRevoked();
-    //     _setBorrowLimit(_limit);
-    // }
+    /// @notice The ```setBorrowLimit``` function sets the borrow limit
+    /// @param _limit The new borrow limit
+    function setBorrowLimit(uint256 _limit) external {
+        _requireTimelockOrOwner();
+        if (isBorrowAccessControlRevoked) revert AccessControlRevoked();
+        _setBorrowLimit(_limit);
+    }
 
-    // /// @notice The ```revokeBorrowLimitAccessControl``` function revokes borrow limit access control
-    // /// @param _borrowLimit The new borrow limit
-    // function revokeBorrowLimitAccessControl(uint256 _borrowLimit) external {
-    //     _requireTimelock();
-    //     _revokeBorrowAccessControl(_borrowLimit);
-    // }
+    /// @notice The ```revokeBorrowLimitAccessControl``` function revokes borrow limit access control
+    /// @param _borrowLimit The new borrow limit
+    function revokeBorrowLimitAccessControl(uint256 _borrowLimit) external {
+        _requireTimelock();
+        _revokeBorrowAccessControl(_borrowLimit);
+    }
 
-    // /// @notice The ```pauseDeposit``` function pauses deposit functionality
-    // function pauseDeposit() external {
-    //     _requireProtocolOrOwner();
-    //     if (isDepositAccessControlRevoked) revert AccessControlRevoked();
-    //     _setDepositLimit(0);
-    // }
+    /// @notice The ```pauseDeposit``` function pauses deposit functionality
+    function pauseDeposit() external {
+        _requireProtocolOrOwner();
+        if (isDepositAccessControlRevoked) revert AccessControlRevoked();
+        _setDepositLimit(0);
+    }
 
-    // /// @notice The ```setDepositLimit``` function sets the deposit limit
-    // /// @param _limit The new deposit limit
-    // function setDepositLimit(uint256 _limit) external {
-    //     _requireTimelockOrOwner();
-    //     if (isDepositAccessControlRevoked) revert AccessControlRevoked();
-    //     _setDepositLimit(_limit);
-    // }
+    /// @notice The ```setDepositLimit``` function sets the deposit limit
+    /// @param _limit The new deposit limit
+    function setDepositLimit(uint256 _limit) external {
+        _requireTimelockOrOwner();
+        if (isDepositAccessControlRevoked) revert AccessControlRevoked();
+        _setDepositLimit(_limit);
+    }
 
-    // /// @notice The ```revokeDepositLimitAccessControl``` function revokes deposit limit access control
-    // /// @param _depositLimit The new deposit limit
-    // function revokeDepositLimitAccessControl(uint256 _depositLimit) external {
-    //     _requireTimelock();
-    //     _revokeDepositAccessControl(_depositLimit);
-    // }
+    /// @notice The ```revokeDepositLimitAccessControl``` function revokes deposit limit access control
+    /// @param _depositLimit The new deposit limit
+    function revokeDepositLimitAccessControl(uint256 _depositLimit) external {
+        _requireTimelock();
+        _revokeDepositAccessControl(_depositLimit);
+    }
 
     // /// @notice The ```pauseRepay``` function pauses repay functionality
     // /// @param _isPaused The new pause state
