@@ -317,15 +317,15 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
 
     bool public isMaxLTVSetterRevoked;
 
-    // /// @notice The ```RevokeMaxLTVSetter``` event is emitted when the max LTV setter is revoked
-    // event RevokeMaxLTVSetter();
+    /// @notice The ```RevokeMaxLTVSetter``` event is emitted when the max LTV setter is revoked
+    event RevokeMaxLTVSetter();
 
-    // /// @notice The ```revokeMaxLTVSetter``` function revokes the max LTV setter
-    // function revokeMaxLTVSetter() external {
-    //     _requireTimelock();
-    //     isMaxLTVSetterRevoked = true;
-    //     emit RevokeMaxLTVSetter();
-    // }
+    /// @notice The ```revokeMaxLTVSetter``` function revokes the max LTV setter
+    function revokeMaxLTVSetter() external {
+        _requireTimelock();
+        isMaxLTVSetterRevoked = true;
+        emit RevokeMaxLTVSetter();
+    }
 
     /// @notice The ```SetMaxLTV``` event is emitted when the max LTV is set
     /// @param oldMaxLTV The old max LTV

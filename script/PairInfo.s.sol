@@ -14,6 +14,7 @@ contract PairInfo is Script {
     function run() public {
         address pair = vm.envAddress("PAIR");
 
+        address rateContract = address(FraxlendPair(pair).rateContract());
         address _externalAssetVault = address(FraxlendPair(pair).externalAssetVault());
         uint256 _protLiqFee = FraxlendPair(pair).protocolLiquidationFee();
         (, uint32 feeToProtocolRate,, uint64 ratePerSec, uint64 fullUtilizationRate) =
