@@ -41,22 +41,16 @@ abstract contract FraxlendPairAccessControl is Timelock2Step, Ownable2Step, Frax
 
     // access control
     uint256 public borrowLimit = type(uint256).max;
-    bool public isBorrowAccessControlRevoked;
 
     uint256 public depositLimit = type(uint256).max;
-    bool public isDepositAccessControlRevoked;
 
     bool public isRepayPaused;
-    bool public isRepayAccessControlRevoked;
 
     bool public isWithdrawPaused;
-    bool public isWithdrawAccessControlRevoked;
 
     bool public isLiquidatePaused;
-    bool public isLiquidateAccessControlRevoked;
 
     bool public isInterestPaused;
-    bool public isInterestAccessControlRevoked;
 
     /// @param _immutables abi.encode(address _circuitBreakerAddress, address _comptrollerAddress, address _timelockAddress)
     constructor(bytes memory _immutables) Timelock2Step() Ownable2Step() {
@@ -90,16 +84,6 @@ abstract contract FraxlendPairAccessControl is Timelock2Step, Ownable2Step, Frax
         }
     }
 
-    /// @notice The ```RevokeBorrowAccessControl``` event is emitted when access to borrow limit is revoked
-    /// @param borrowLimit The final permanent borrow limit
-    event RevokeBorrowAccessControl(uint256 borrowLimit);
-
-    function _revokeBorrowAccessControl(uint256 _borrowLimit) internal {
-        isBorrowAccessControlRevoked = true;
-        borrowLimit = _borrowLimit;
-        emit RevokeBorrowAccessControl(_borrowLimit);
-    }
-
     /// @notice The ```SetBorrowLimit``` event is emitted when the borrow limit is set
     /// @param limit The new borrow limit
     event SetBorrowLimit(uint256 limit);
@@ -107,16 +91,6 @@ abstract contract FraxlendPairAccessControl is Timelock2Step, Ownable2Step, Frax
     function _setBorrowLimit(uint256 _limit) internal {
         borrowLimit = _limit;
         emit SetBorrowLimit(_limit);
-    }
-
-    /// @notice The ```RevokeDepositAccessControl``` event is emitted when access to deposit limit is revoked
-    /// @param depositLimit The final permanent deposit limit
-    event RevokeDepositAccessControl(uint256 depositLimit);
-
-    function _revokeDepositAccessControl(uint256 _depositLimit) internal {
-        isDepositAccessControlRevoked = true;
-        depositLimit = _depositLimit;
-        emit RevokeDepositAccessControl(_depositLimit);
     }
 
     /// @notice The ```SetDepositLimit``` event is emitted when the deposit limit is set
@@ -128,14 +102,6 @@ abstract contract FraxlendPairAccessControl is Timelock2Step, Ownable2Step, Frax
         emit SetDepositLimit(_limit);
     }
 
-    /// @notice The ```RevokeRepayAccessControl``` event is emitted when repay access control is revoked
-    event RevokeRepayAccessControl();
-
-    function _revokeRepayAccessControl() internal {
-        isRepayAccessControlRevoked = true;
-        emit RevokeRepayAccessControl();
-    }
-
     /// @notice The ```PauseRepay``` event is emitted when repay is paused or unpaused
     /// @param isPaused The new paused state
     event PauseRepay(bool isPaused);
@@ -143,14 +109,6 @@ abstract contract FraxlendPairAccessControl is Timelock2Step, Ownable2Step, Frax
     function _pauseRepay(bool _isPaused) internal {
         isRepayPaused = _isPaused;
         emit PauseRepay(_isPaused);
-    }
-
-    /// @notice The ```RevokeWithdrawAccessControl``` event is emitted when withdraw access control is revoked
-    event RevokeWithdrawAccessControl();
-
-    function _revokeWithdrawAccessControl() internal {
-        isWithdrawAccessControlRevoked = true;
-        emit RevokeWithdrawAccessControl();
     }
 
     /// @notice The ```PauseWithdraw``` event is emitted when withdraw is paused or unpaused
@@ -162,14 +120,6 @@ abstract contract FraxlendPairAccessControl is Timelock2Step, Ownable2Step, Frax
         emit PauseWithdraw(_isPaused);
     }
 
-    /// @notice The ```RevokeLiquidateAccessControl``` event is emitted when liquidate access control is revoked
-    event RevokeLiquidateAccessControl();
-
-    function _revokeLiquidateAccessControl() internal {
-        isLiquidateAccessControlRevoked = true;
-        emit RevokeLiquidateAccessControl();
-    }
-
     /// @notice The ```PauseLiquidate``` event is emitted when liquidate is paused or unpaused
     /// @param isPaused The new paused state
     event PauseLiquidate(bool isPaused);
@@ -177,14 +127,6 @@ abstract contract FraxlendPairAccessControl is Timelock2Step, Ownable2Step, Frax
     function _pauseLiquidate(bool _isPaused) internal {
         isLiquidatePaused = _isPaused;
         emit PauseLiquidate(_isPaused);
-    }
-
-    /// @notice The ```RevokeInterestAccessControl``` event is emitted when interest access control is revoked
-    event RevokeInterestAccessControl();
-
-    function _revokeInterestAccessControl() internal {
-        isInterestAccessControlRevoked = true;
-        emit RevokeInterestAccessControl();
     }
 
     /// @notice The ```PauseInterest``` event is emitted when interest is paused or unpaused

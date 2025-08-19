@@ -21,7 +21,7 @@ contract PairSetMaxLTV is Script {
         vm.startBroadcast();
 
         // Set the external asset vault
-        FraxlendPair(pair).setMaxLTV(maxLTV);
+        FraxlendPair(pair).setMaxLTV(maxLTV, maxLTV * 4 / 5);
         console2.log("MaxLTV set to:", maxLTV);
 
         vm.stopBroadcast();
