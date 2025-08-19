@@ -16,8 +16,7 @@ contract DeployPairScript is Script {
         address borrowAsset = vm.envAddress("BORROW_ASSET");
         address collateral = vm.envAddress("COLLATERAL_ASSET");
         address aspOracle = vm.envAddress("ORACLE");
-        address rateContract = 0xd0DE14604E7B64FF22EaA5Aafc2C520C04A9bE59; // Sepolia
-        // address rateContract = 0x31CA9b1779e0BFAf3F5005ac4Bf2Bd74DCB8c8cE; // Arbitrum
+        address rateContract = vm.envAddress("VIR");
 
         // Config data parameters
         uint32 maxOracleDeviation = 5000;

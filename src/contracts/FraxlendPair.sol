@@ -468,19 +468,19 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
         emit WithdrawFees(_shares, _recipient, _amountToTransfer, _collateralAmount);
     }
 
-    /// @notice The ```SetSwapper``` event fires whenever a swapper is black or whitelisted
-    /// @param swapper The swapper address
-    /// @param approval The approval
-    event SetSwapper(address swapper, bool approval);
+    // /// @notice The ```SetSwapper``` event fires whenever a swapper is black or whitelisted
+    // /// @param swapper The swapper address
+    // /// @param approval The approval
+    // event SetSwapper(address swapper, bool approval);
 
-    /// @notice The ```setSwapper``` function is called to black or whitelist a given swapper address
-    /// @dev
-    /// @param _swapper The swapper address
-    /// @param _approval The approval
-    function setSwapper(address _swapper, bool _approval) external onlyOwner {
-        swappers[_swapper] = _approval;
-        emit SetSwapper(_swapper, _approval);
-    }
+    // /// @notice The ```setSwapper``` function is called to black or whitelist a given swapper address
+    // /// @dev
+    // /// @param _swapper The swapper address
+    // /// @param _approval The approval
+    // function setSwapper(address _swapper, bool _approval) external onlyOwner {
+    //     swappers[_swapper] = _approval;
+    //     emit SetSwapper(_swapper, _approval);
+    // }
 
     // ============================================================================================
     // Functions: Access Control
@@ -526,49 +526,49 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
         emit UpdatedMinURChange(_newURChange);
     }
 
-    // /// @notice The ```pauseBorrow``` function sets borrow limit to 0
-    // function pauseBorrow() external {
-    //     _requireProtocolOrOwner();
-    //     if (isBorrowAccessControlRevoked) revert AccessControlRevoked();
-    //     _setBorrowLimit(0);
-    // }
+    /// @notice The ```pauseBorrow``` function sets borrow limit to 0
+    function pauseBorrow() external {
+        _requireProtocolOrOwner();
+        if (isBorrowAccessControlRevoked) revert AccessControlRevoked();
+        _setBorrowLimit(0);
+    }
 
-    // /// @notice The ```setBorrowLimit``` function sets the borrow limit
-    // /// @param _limit The new borrow limit
-    // function setBorrowLimit(uint256 _limit) external {
-    //     _requireTimelockOrOwner();
-    //     if (isBorrowAccessControlRevoked) revert AccessControlRevoked();
-    //     _setBorrowLimit(_limit);
-    // }
+    /// @notice The ```setBorrowLimit``` function sets the borrow limit
+    /// @param _limit The new borrow limit
+    function setBorrowLimit(uint256 _limit) external {
+        _requireTimelockOrOwner();
+        if (isBorrowAccessControlRevoked) revert AccessControlRevoked();
+        _setBorrowLimit(_limit);
+    }
 
-    // /// @notice The ```revokeBorrowLimitAccessControl``` function revokes borrow limit access control
-    // /// @param _borrowLimit The new borrow limit
-    // function revokeBorrowLimitAccessControl(uint256 _borrowLimit) external {
-    //     _requireTimelock();
-    //     _revokeBorrowAccessControl(_borrowLimit);
-    // }
+    /// @notice The ```revokeBorrowLimitAccessControl``` function revokes borrow limit access control
+    /// @param _borrowLimit The new borrow limit
+    function revokeBorrowLimitAccessControl(uint256 _borrowLimit) external {
+        _requireTimelock();
+        _revokeBorrowAccessControl(_borrowLimit);
+    }
 
-    // /// @notice The ```pauseDeposit``` function pauses deposit functionality
-    // function pauseDeposit() external {
-    //     _requireProtocolOrOwner();
-    //     if (isDepositAccessControlRevoked) revert AccessControlRevoked();
-    //     _setDepositLimit(0);
-    // }
+    /// @notice The ```pauseDeposit``` function pauses deposit functionality
+    function pauseDeposit() external {
+        _requireProtocolOrOwner();
+        if (isDepositAccessControlRevoked) revert AccessControlRevoked();
+        _setDepositLimit(0);
+    }
 
-    // /// @notice The ```setDepositLimit``` function sets the deposit limit
-    // /// @param _limit The new deposit limit
-    // function setDepositLimit(uint256 _limit) external {
-    //     _requireTimelockOrOwner();
-    //     if (isDepositAccessControlRevoked) revert AccessControlRevoked();
-    //     _setDepositLimit(_limit);
-    // }
+    /// @notice The ```setDepositLimit``` function sets the deposit limit
+    /// @param _limit The new deposit limit
+    function setDepositLimit(uint256 _limit) external {
+        _requireTimelockOrOwner();
+        if (isDepositAccessControlRevoked) revert AccessControlRevoked();
+        _setDepositLimit(_limit);
+    }
 
-    // /// @notice The ```revokeDepositLimitAccessControl``` function revokes deposit limit access control
-    // /// @param _depositLimit The new deposit limit
-    // function revokeDepositLimitAccessControl(uint256 _depositLimit) external {
-    //     _requireTimelock();
-    //     _revokeDepositAccessControl(_depositLimit);
-    // }
+    /// @notice The ```revokeDepositLimitAccessControl``` function revokes deposit limit access control
+    /// @param _depositLimit The new deposit limit
+    function revokeDepositLimitAccessControl(uint256 _depositLimit) external {
+        _requireTimelock();
+        _revokeDepositAccessControl(_depositLimit);
+    }
 
     // /// @notice The ```pauseRepay``` function pauses repay functionality
     // /// @param _isPaused The new pause state

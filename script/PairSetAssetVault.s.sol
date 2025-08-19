@@ -13,11 +13,11 @@ contract PairSetAssetVaultScript is Script {
         // Get the pair and vault addresses from environment variables
         address pair = vm.envAddress("PAIR");
         address vault = vm.envAddress("VAULT");
-        require(pair != address(0) && vault != address(0), "PAIR and VAULT addresses must be set");
+        require(pair != address(0), "PAIR must be set");
 
-        // Log the timelock address before making changes
-        address timelock = FraxlendPair(pair).timelockAddress();
-        console2.log("Timelock address:", timelock);
+        // Log the timelock + external asset vault before making changes
+        console2.log("External asset vault:", address(FraxlendPair(pair).externalAssetVault()));
+        console2.log("Timelock address:", FraxlendPair(pair).timelockAddress());
 
         vm.startBroadcast();
 
