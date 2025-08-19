@@ -46,6 +46,7 @@ abstract contract FraxlendPairConstants {
     uint256 public constant MAX_PROTOCOL_FEE = 5e4; // 50% 1e5 precision
 
     error Insolvent(uint256 _borrow, uint256 _collateral, uint256 _exchangeRate);
+    error NotEnoughBorrowCapacity(uint256 _borrow, uint256 _collateral, uint256 _exchangeRate);
     error BorrowerSolvent();
     error InsufficientAssetsInContract(uint256 _assets, uint256 _request);
     error SlippageTooHigh(uint256 _minOut, uint256 _actual);
@@ -53,10 +54,13 @@ abstract contract FraxlendPairConstants {
     error InvalidPath(address _expected, address _actual);
     error BadProtocolFee();
     error PastDeadline(uint256 _blockTimestamp, uint256 _deadline);
+    error MaxBorrowLTVLargerThanMaxLTV();
     error SetterRevoked();
     error ExceedsMaxOracleDeviation();
     error InvalidReceiver();
     error ExternalAssetVaultOnly();
     error BadDirtyLiquidation();
     error MinURChangeMax();
+    error MustWaitToOverBorrow(uint256 _lastAddCollateral, uint256 _blockDelay);
+    error MustWaitToLiquidate(uint256 _lastBorrow, uint256 _blockDelay);
 }
