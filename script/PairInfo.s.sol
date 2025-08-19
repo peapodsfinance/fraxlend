@@ -14,7 +14,7 @@ contract PairInfo is Script {
     function run() public {
         address pair = vm.envAddress("PAIR");
 
-        address _externalAssetVault = address(FraxlendPair(pair).externalAssetVault());
+        address rateContract = address(FraxlendPair(pair).rateContract());
         uint256 _protLiqFee = FraxlendPair(pair).protocolLiquidationFee();
         (, uint32 feeToProtocolRate,, uint64 ratePerSec, uint64 fullUtilizationRate) =
             FraxlendPair(pair).currentRateInfo();
@@ -28,15 +28,15 @@ contract PairInfo is Script {
             VaultAccount memory _totalAsset,
             VaultAccount memory _totalBorrow
         ) = FraxlendPair(pair).previewAddInterest();
-        uint256 _totalAssetsAvailable = _totalAsset.totalAmount(_externalAssetVault);
+        uint256 _totalAssetsAvailable = _totalAsset.totalAmount(address(FraxlendPair(pair).externalAssetVault()));
         uint256 _utilizationRate = _totalAssetsAvailable == 0
             ? 0
             : (FraxlendPair(pair).UTIL_PREC() * _totalBorrow.amount) / _totalAssetsAvailable;
 
         // Log the results
         console2.log("Owner:", FraxlendPair(pair).owner());
-        console2.log("Metavault:", _externalAssetVault);
-        console2.log("Rate contract:", address(FraxlendPair(pair).rateContract()));
+        console2.log("Metavault:", address(FraxlendPair(pair).externalAssetVault()));
+        console2.log("Rate contract:", rateContract);
         console2.log("protocolLiquidationFee:", _protLiqFee);
         console2.log("currentRateInfo.feeToProtocolRate:", feeToProtocolRate);
         console2.log("currentRateInfo.ratePerSec:", ratePerSec);

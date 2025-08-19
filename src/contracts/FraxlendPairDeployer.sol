@@ -117,34 +117,12 @@ contract FraxlendPairDeployer is Ownable {
         _deployedPairs = deployedPairsArray;
     }
 
-    function getNextNameSymbol(address _asset, address _collateral)
-        public
-        view
-        returns (string memory _name, string memory _symbol)
-    {
+    function getNextNameSymbol(address _asset) public view returns (string memory _name, string memory _symbol) {
         uint256 _length = IFraxlendPairRegistry(fraxlendPairRegistryAddress).deployedPairsLength();
         _name = string(
-            abi.encodePacked(
-                "Fraxlend Interest Bearing ",
-                IERC20(_asset).safeSymbol(),
-                " (",
-                IERC20(_collateral).safeName(),
-                ")",
-                " - ",
-                (_length + 1).toString()
-            )
+            abi.encodePacked("Peapods Interest Bearing ", IERC20(_asset).safeSymbol(), " - ", (_length + 1).toString())
         );
-        _symbol = string(
-            abi.encodePacked(
-                "f",
-                IERC20(_asset).safeSymbol(),
-                "(",
-                IERC20(_collateral).safeSymbol(),
-                ")",
-                "-",
-                (_length + 1).toString()
-            )
-        );
+        _symbol = string(abi.encodePacked("pf", IERC20(_asset).safeSymbol(), "-", (_length + 1).toString()));
     }
 
     // ============================================================================================
@@ -232,7 +210,7 @@ contract FraxlendPairDeployer is Ownable {
     // ============================================================================================
 
     /// @notice The ```_deploy``` function is an internal function with deploys the pair
-    /// @param _configData abi.encode(address _asset, address _collateral, address _oracle, uint32 _maxOracleDeviation, address _rateContract, uint64 _fullUtilizationRate, uint256 _maxLTV, uint256 _cleanLiquidationFee, uint256 _dirtyLiquidationFee, uint256 _protocolLiquidationFee)
+    /// @param _configData abi.encode(address _asset, address _collateral, address _oracle, uint32 _maxOracleDeviation, address _rateContract, uint64 _fullUtilizationRate, uint256 _maxLTV, uint256 _liquidationFee, uint256 _protocolLiquidationFee)
     /// @param _immutables abi.encode(address _circuitBreakerAddress, address _comptrollerAddress, address _timelockAddress)
     /// @param _customConfigData abi.encode(string memory _nameOfContract, string memory _symbolOfContract, uint8 _decimalsOfContract)
     /// @return _pairAddress The address to which the Pair was deployed
@@ -273,7 +251,7 @@ contract FraxlendPairDeployer is Ownable {
     // ============================================================================================
 
     /// @notice The ```deploy``` function allows the deployment of a FraxlendPair with default values
-    /// @param _configData abi.encode(address _asset, address _collateral, address _oracle, uint32 _maxOracleDeviation, address _rateContract, uint64 _fullUtilizationRate, uint256 _maxLTV, uint256 _cleanLiquidationFee, uint256 _dirtyLiquidationFee, uint256 _protocolLiquidationFee)
+    /// @param _configData abi.encode(address _asset, address _collateral, address _oracle, uint32 _maxOracleDeviation, address _rateContract, uint64 _fullUtilizationRate, uint256 _maxLTV, uint256 _liquidationFee, uint256 _protocolLiquidationFee)
     /// @return _pairAddress The address to which the Pair was deployed
     function deploy(bytes memory _configData) external returns (address _pairAddress) {
         if (!IFraxlendWhitelist(fraxlendWhitelistAddress).fraxlendDeployerWhitelist(msg.sender)) {
@@ -283,7 +261,7 @@ contract FraxlendPairDeployer is Ownable {
         (address _asset, address _collateral,,,,,,,) =
             abi.decode(_configData, (address, address, address, uint32, address, uint64, uint256, uint256, uint256));
 
-        (string memory _name, string memory _symbol) = getNextNameSymbol(_asset, _collateral);
+        (string memory _name, string memory _symbol) = getNextNameSymbol(_asset);
 
         bytes memory _immutables = abi.encode(circuitBreakerAddress, comptrollerAddress, timelockAddress);
         bytes memory _customConfigData = abi.encode(_name, _symbol, IERC20(_asset).safeDecimals());

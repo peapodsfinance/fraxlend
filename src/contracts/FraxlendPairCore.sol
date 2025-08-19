@@ -171,7 +171,7 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
             assetContract = IERC20(_asset);
             collateralContract = IERC20(_collateral);
 
-            currentRateInfo.feeToProtocolRate = 0;
+            currentRateInfo.feeToProtocolRate = 1e4; // 10%
             currentRateInfo.fullUtilizationRate = _fullUtilizationRate;
             currentRateInfo.lastTimestamp = uint64(block.timestamp - 1);
             currentRateInfo.lastBlock = uint32(block.number - 1);
@@ -200,10 +200,7 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
             symbolOfContract = _symbolOfContract;
             decimalsOfContract = _decimalsOfContract;
 
-            // Instantiate Interest
-            _addInterest();
-            // Instantiate Exchange Rate
-            _updateExchangeRate();
+            // NOTE: creator should addInterest() and updateExchangeRate() at end of processing
         }
     }
 
