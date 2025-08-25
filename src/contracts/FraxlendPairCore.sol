@@ -89,6 +89,10 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
     mapping(address => uint256) _lastAddCollateral;
     uint256 public overBorrowDelayAfterAddCollateral = 1;
 
+    // Determines if someone can bypass and overborrow without needing to
+    // abide by overBorrowDelayAfterAddCollateral
+    mapping(address => bool) public overBorrowBypassWhitelist;
+
     // Stores block of last borrow for position, and then determines how long required to wait
     // until liquidation can happen after borrowing to prevent attack/exploitation
     mapping(address => uint256) _lastBorrow;
@@ -279,7 +283,7 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         uint256 _ltv = (((_borrowerAmount * _exchangeRateInfo.highExchangeRate) / EXCHANGE_PRECISION) * LTV_PRECISION)
             / _collateralAmount;
         // if borrow amount > 50% LTV make sure user has waited required delay first
-        if (_ltv > LTV_PRECISION / 2) {
+        if (_ltv > LTV_PRECISION / 2 && !overBorrowBypassWhitelist[_borrower]) {
             if (block.number < _lastAddCollateral[_borrower] + overBorrowDelayAfterAddCollateral) {
                 revert MustWaitToOverBorrow(_lastAddCollateral[_borrower], overBorrowDelayAfterAddCollateral);
             }

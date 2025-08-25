@@ -62,5 +62,6 @@ abstract contract FraxlendPairConstants {
     error BadDirtyLiquidation();
     error MinURChangeMax();
     error MustWaitToOverBorrow(uint256 _lastAddCollateral, uint256 _blockDelay);
+    error MustToggleOverBorrowWhitelist();
     error MustWaitToLiquidate(uint256 _lastBorrow, uint256 _blockDelay);
 }
