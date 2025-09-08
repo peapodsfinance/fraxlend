@@ -511,18 +511,4 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
         overBorrowDelayAfterAddCollateral = _overBorrowDelayAfterAddCollateral;
         liquidateDelayAfterBorrow = _liquidateDelayAfterBorrow;
     }
-
-    event SetOverBorrowBypassWhitelist(address _account, bool _whitelisted);
-
-    /// @notice The ```setOverBorrowBypassWhitelist``` function sets the over borrow bypass whitelist
-    /// @param _account The account to toggle whitelist ability
-    /// @param _whitelisted Whether to whitelist this account or not (must toggle from current state)
-    function setOverBorrowBypassWhitelist(address _account, bool _whitelisted) external {
-        _requireTimelockOrOwner();
-        if (overBorrowBypassWhitelist[_account] == _whitelisted) {
-            revert MustToggleOverBorrowWhitelist();
-        }
-        emit SetOverBorrowBypassWhitelist(_account, _whitelisted);
-        overBorrowBypassWhitelist[_account] = _whitelisted;
-    }
 }
