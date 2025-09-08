@@ -163,9 +163,12 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
                 address _rateContract,
                 uint64 _fullUtilizationRate,
                 uint256 _maxLTV,
+                uint256 _maxBorrowLTV,
                 uint256 _liquidationFee,
                 uint256 _protocolLiquidationFee
-            ) = abi.decode(_configData, (address, address, address, uint32, address, uint64, uint256, uint256, uint256));
+            ) = abi.decode(
+                _configData, (address, address, address, uint32, address, uint64, uint256, uint256, uint256, uint256)
+            );
 
             // Pair Settings
             assetContract = IERC20(_asset);
@@ -186,9 +189,9 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
             dirtyLiquidationFee = (_liquidationFee * 90_000) / LIQ_PRECISION; // 90% of clean fee
             protocolLiquidationFee = _protocolLiquidationFee;
 
-            // set maxLTV & default maxBorrowLTV
+            // set maxLTV & maxBorrowLTV
             maxLTV = _maxLTV;
-            maxBorrowLTV = _maxLTV * 4 / 5; // 20% less maxLTV
+            maxBorrowLTV = _maxBorrowLTV;
         }
 
         {
