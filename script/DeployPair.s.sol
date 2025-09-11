@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 import {Script} from "forge-std/Script.sol";
 import {console2} from "forge-std/console2.sol";
 import {FraxlendPair} from "../src/contracts/FraxlendPair.sol";
+import {FraxlendPairDeployer} from "../src/contracts/FraxlendPairDeployer.sol";
 
 contract DeployPairScript is Script {
     function setUp() public {}
@@ -13,6 +14,7 @@ contract DeployPairScript is Script {
         address deployer = vm.addr(deployerPrivateKey);
         vm.startBroadcast(deployer);
 
+        address frDeployer = vm.envAddress("DEPLOYER");
         address borrowAsset = vm.envAddress("BORROW_ASSET");
         address collateral = vm.envAddress("COLLATERAL_ASSET");
         address aspOracle = vm.envAddress("ORACLE");
@@ -34,28 +36,30 @@ contract DeployPairScript is Script {
             rateContract,
             fullUtilizationRate,
             maxLTV,
+            maxLTV * 8 / 10,
             liquidationFee,
             protocolLiquidationFee
         );
 
-        // Immutable parameters
-        address circuitBreakerAddress = deployer;
-        address comptrollerAddress = deployer;
-        address timelockAddress = deployer;
+        // // Immutable parameters
+        // address circuitBreakerAddress = deployer;
+        // address comptrollerAddress = deployer;
+        // address timelockAddress = deployer;
 
-        bytes memory immutables = abi.encode(circuitBreakerAddress, comptrollerAddress, timelockAddress);
+        // bytes memory immutables = abi.encode(circuitBreakerAddress, comptrollerAddress, timelockAddress);
 
-        // Custom config parameters
-        string memory nameOfContract = "Test Lending Pair";
-        string memory symbolOfContract = "faspVER";
-        uint8 decimalsOfContract = 18;
+        // // Custom config parameters
+        // string memory nameOfContract = "Test Lending Pair";
+        // string memory symbolOfContract = "faspVER";
+        // uint8 decimalsOfContract = 18;
 
-        bytes memory customConfigData = abi.encode(nameOfContract, symbolOfContract, decimalsOfContract);
+        // bytes memory customConfigData = abi.encode(nameOfContract, symbolOfContract, decimalsOfContract);
 
         // Deploy the contract
-        FraxlendPair newPair = new FraxlendPair(configData, immutables, customConfigData);
+        // FraxlendPair newPair = new FraxlendPair(configData, immutables, customConfigData);
+        address newPair = FraxlendPairDeployer(frDeployer).deploy(configData);
 
-        console2.log("New FraxlendPair deployed at:", address(newPair));
+        console2.log("New FraxlendPair deployed at:", newPair);
 
         vm.stopBroadcast();
     }
