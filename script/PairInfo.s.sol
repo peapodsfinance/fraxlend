@@ -37,6 +37,8 @@ contract PairInfo is Script {
         console2.log("Owner:", FraxlendPair(pair).owner());
         console2.log("Metavault:", address(FraxlendPair(pair).externalAssetVault()));
         console2.log("Rate contract:", rateContract);
+        console2.log("maxLTV:", FraxlendPair(pair).maxLTV());
+        console2.log("maxBorrowLTV:", FraxlendPair(pair).maxBorrowLTV());
         console2.log("protocolLiquidationFee:", _protLiqFee);
         console2.log("currentRateInfo.feeToProtocolRate:", feeToProtocolRate);
         console2.log("currentRateInfo.ratePerSec:", ratePerSec);
