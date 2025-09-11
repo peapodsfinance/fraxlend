@@ -64,9 +64,6 @@ contract FraxlendPairDeployer is Ownable {
     address public fraxlendPairRegistryAddress;
     address public fraxlendWhitelistAddress;
 
-    // Default swappers
-    address[] public defaultSwappers;
-
     // Default deposit amount for new pairs
     uint256 public defaultDepositAmt;
 
@@ -142,12 +139,6 @@ contract FraxlendPairDeployer is Ownable {
             bytes memory _secondHalf = BytesLib.slice(_creationCode, 13_000, _creationCode.length - 13_000);
             contractAddress2 = SSTORE2.write(_secondHalf);
         }
-    }
-
-    /// @notice The ```setDefaultSwappers``` function is used to set default list of approved swappers
-    /// @param _swappers The list of swappers to set as default allowed
-    function setDefaultSwappers(address[] memory _swappers) external onlyOwner {
-        defaultSwappers = _swappers;
     }
 
     function setDefaultDepositAmt(uint256 _amount) external onlyOwner {
@@ -251,10 +242,6 @@ contract FraxlendPairDeployer is Ownable {
             IERC20(_fraxlendPair.asset()).approve(address(_fraxlendPair), defaultDepositAmt);
             _fraxlendPair.deposit(defaultDepositAmt, msg.sender);
         }
-        address[] memory _defaultSwappers = defaultSwappers;
-        for (uint256 i = 0; i < _defaultSwappers.length; i++) {
-            _fraxlendPair.setSwapper(_defaultSwappers[i], true);
-        }
 
         return _pairAddress;
     }
@@ -271,8 +258,9 @@ contract FraxlendPairDeployer is Ownable {
             revert WhitelistedDeployersOnly();
         }
 
-        (address _asset, address _collateral,,,,,,,) =
-            abi.decode(_configData, (address, address, address, uint32, address, uint64, uint256, uint256, uint256));
+        (address _asset, address _collateral,,,,,,,,) = abi.decode(
+            _configData, (address, address, address, uint32, address, uint64, uint256, uint256, uint256, uint256)
+        );
 
         (string memory _name, string memory _symbol) = getNextNameSymbol(_asset);
 

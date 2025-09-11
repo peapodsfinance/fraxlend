@@ -279,18 +279,6 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
     // Functions: Configuration
     // ============================================================================================
 
-    bool public isOracleSetterRevoked;
-
-    /// @notice The ```RevokeOracleSetter``` event is emitted when the oracle setter is revoked
-    event RevokeOracleInfoSetter();
-
-    /// @notice The ```revokeOracleSetter``` function revokes the oracle setter
-    function revokeOracleInfoSetter() external {
-        _requireTimelock();
-        isOracleSetterRevoked = true;
-        emit RevokeOracleInfoSetter();
-    }
-
     /// @notice The ```SetOracleInfo``` event is emitted when the oracle info (address and max deviation) is set
     /// @param oldOracle The old oracle address
     /// @param oldMaxOracleDeviation The old max oracle deviation
@@ -305,7 +293,6 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
     /// @param _newMaxOracleDeviation The new max oracle deviation
     function setOracle(address _newOracle, uint32 _newMaxOracleDeviation) external {
         _requireTimelock();
-        if (isOracleSetterRevoked) revert SetterRevoked();
         ExchangeRateInfo memory _exchangeRateInfo = exchangeRateInfo;
         emit SetOracleInfo(
             _exchangeRateInfo.oracle, _exchangeRateInfo.maxOracleDeviation, _newOracle, _newMaxOracleDeviation
@@ -315,42 +302,22 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
         exchangeRateInfo = _exchangeRateInfo;
     }
 
-    bool public isMaxLTVSetterRevoked;
-
-    /// @notice The ```RevokeMaxLTVSetter``` event is emitted when the max LTV setter is revoked
-    event RevokeMaxLTVSetter();
-
-    /// @notice The ```revokeMaxLTVSetter``` function revokes the max LTV setter
-    function revokeMaxLTVSetter() external {
-        _requireTimelock();
-        isMaxLTVSetterRevoked = true;
-        emit RevokeMaxLTVSetter();
-    }
-
     /// @notice The ```SetMaxLTV``` event is emitted when the max LTV is set
     /// @param oldMaxLTV The old max LTV
     /// @param newMaxLTV The new max LTV
-    event SetMaxLTV(uint256 oldMaxLTV, uint256 newMaxLTV);
+    /// @param oldMaxBorrowLTV The old max borrow LTV
+    /// @param newMaxBorrowLTV The new max borrow LTV
+    event SetMaxLTV(uint256 oldMaxLTV, uint256 newMaxLTV, uint256 oldMaxBorrowLTV, uint256 newMaxBorrowLTV);
 
     /// @notice The ```setMaxLTV``` function sets the max LTV
     /// @param _newMaxLTV The new max LTV
-    function setMaxLTV(uint256 _newMaxLTV) external {
+    /// @param _newMaxBorrowLTV The new max borrow LTV
+    function setMaxLTV(uint256 _newMaxLTV, uint256 _newMaxBorrowLTV) external {
         _requireTimelock();
-        if (isMaxLTVSetterRevoked) revert SetterRevoked();
-        emit SetMaxLTV(maxLTV, _newMaxLTV);
+        if (_newMaxLTV < _newMaxBorrowLTV) revert MaxBorrowLTVLargerThanMaxLTV();
+        emit SetMaxLTV(maxLTV, _newMaxLTV, maxBorrowLTV, _newMaxBorrowLTV);
         maxLTV = _newMaxLTV;
-    }
-
-    bool public isRateContractSetterRevoked;
-
-    /// @notice The ```RevokeRateContractSetter``` event is emitted when the rate contract setter is revoked
-    event RevokeRateContractSetter();
-
-    /// @notice The ```revokeRateContractSetter``` function revokes the rate contract setter
-    function revokeRateContractSetter() external {
-        _requireTimelock();
-        isRateContractSetterRevoked = true;
-        emit RevokeRateContractSetter();
+        maxBorrowLTV = _newMaxBorrowLTV;
     }
 
     /// @notice The ```SetRateContract``` event is emitted when the rate contract is set
@@ -362,21 +329,8 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
     /// @param _newRateContract The new rate contract address
     function setRateContract(address _newRateContract) external {
         _requireTimelock();
-        if (isRateContractSetterRevoked) revert SetterRevoked();
         emit SetRateContract(address(rateContract), _newRateContract);
         rateContract = IRateCalculatorV2(_newRateContract);
-    }
-
-    bool public isLiquidationFeeSetterRevoked;
-
-    /// @notice The ```RevokeLiquidationFeeSetter``` event is emitted when the liquidation fee setter is revoked
-    event RevokeLiquidationFeeSetter();
-
-    /// @notice The ```revokeLiquidationFeeSetter``` function revokes the liquidation fee setter
-    function revokeLiquidationFeeSetter() external {
-        _requireTimelock();
-        isLiquidationFeeSetterRevoked = true;
-        emit RevokeLiquidationFeeSetter();
     }
 
     /// @notice The ```SetLiquidationFees``` event is emitted when the liquidation fees are set
@@ -407,7 +361,6 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
         uint256 _newMinCollateralRequiredOnDirtyLiquidation
     ) external {
         _requireTimelock();
-        if (isLiquidationFeeSetterRevoked) revert SetterRevoked();
         emit SetLiquidationFees(
             cleanLiquidationFee,
             dirtyLiquidationFee,
@@ -468,20 +421,6 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
         emit WithdrawFees(_shares, _recipient, _amountToTransfer, _collateralAmount);
     }
 
-    // /// @notice The ```SetSwapper``` event fires whenever a swapper is black or whitelisted
-    // /// @param swapper The swapper address
-    // /// @param approval The approval
-    // event SetSwapper(address swapper, bool approval);
-
-    // /// @notice The ```setSwapper``` function is called to black or whitelist a given swapper address
-    // /// @dev
-    // /// @param _swapper The swapper address
-    // /// @param _approval The approval
-    // function setSwapper(address _swapper, bool _approval) external onlyOwner {
-    //     swappers[_swapper] = _approval;
-    //     emit SetSwapper(_swapper, _approval);
-    // }
-
     // ============================================================================================
     // Functions: Access Control
     // ============================================================================================
@@ -489,30 +428,26 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
     /// @notice The ```pause``` function is called to pause all contract functionality
     function pause() external {
         _requireProtocolOrOwner();
-        if (!isBorrowAccessControlRevoked) _setBorrowLimit(0);
-        if (!isDepositAccessControlRevoked) _setDepositLimit(0);
-        if (!isRepayAccessControlRevoked) _pauseRepay(true);
-        if (!isWithdrawAccessControlRevoked) _pauseWithdraw(true);
-        if (!isLiquidateAccessControlRevoked) _pauseLiquidate(true);
-        if (!isInterestAccessControlRevoked) {
-            _addInterest();
-            _pauseInterest(true);
-        }
+        _setBorrowLimit(0);
+        _setDepositLimit(0);
+        _pauseRepay(true);
+        _pauseWithdraw(true);
+        _pauseLiquidate(true);
+        _addInterest();
+        _pauseInterest(true);
     }
 
     /// @notice The ```unpause``` function is called to unpause all contract functionality
     function unpause() external {
         _requireTimelockOrOwner();
-        if (!isBorrowAccessControlRevoked) _setBorrowLimit(type(uint256).max);
-        if (!isDepositAccessControlRevoked) _setDepositLimit(type(uint256).max);
-        if (!isRepayAccessControlRevoked) _pauseRepay(false);
-        if (!isWithdrawAccessControlRevoked) _pauseWithdraw(false);
-        if (!isLiquidateAccessControlRevoked) _pauseLiquidate(false);
-        if (!isInterestAccessControlRevoked) {
-            _addInterest();
-            _pauseInterest(false);
-            currentRateInfo.lastTimestamp = uint64(block.timestamp);
-        }
+        _setBorrowLimit(type(uint256).max);
+        _setDepositLimit(type(uint256).max);
+        _pauseRepay(false);
+        _pauseWithdraw(false);
+        _pauseLiquidate(false);
+        _addInterest();
+        _pauseInterest(false);
+        currentRateInfo.lastTimestamp = uint64(block.timestamp);
     }
 
     event UpdatedMinURChange(uint256 newURChange);
@@ -529,7 +464,6 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
     /// @notice The ```pauseBorrow``` function sets borrow limit to 0
     function pauseBorrow() external {
         _requireProtocolOrOwner();
-        if (isBorrowAccessControlRevoked) revert AccessControlRevoked();
         _setBorrowLimit(0);
     }
 
@@ -537,21 +471,12 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
     /// @param _limit The new borrow limit
     function setBorrowLimit(uint256 _limit) external {
         _requireTimelockOrOwner();
-        if (isBorrowAccessControlRevoked) revert AccessControlRevoked();
         _setBorrowLimit(_limit);
-    }
-
-    /// @notice The ```revokeBorrowLimitAccessControl``` function revokes borrow limit access control
-    /// @param _borrowLimit The new borrow limit
-    function revokeBorrowLimitAccessControl(uint256 _borrowLimit) external {
-        _requireTimelock();
-        _revokeBorrowAccessControl(_borrowLimit);
     }
 
     /// @notice The ```pauseDeposit``` function pauses deposit functionality
     function pauseDeposit() external {
         _requireProtocolOrOwner();
-        if (isDepositAccessControlRevoked) revert AccessControlRevoked();
         _setDepositLimit(0);
     }
 
@@ -559,89 +484,31 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
     /// @param _limit The new deposit limit
     function setDepositLimit(uint256 _limit) external {
         _requireTimelockOrOwner();
-        if (isDepositAccessControlRevoked) revert AccessControlRevoked();
         _setDepositLimit(_limit);
     }
 
-    /// @notice The ```revokeDepositLimitAccessControl``` function revokes deposit limit access control
-    /// @param _depositLimit The new deposit limit
-    function revokeDepositLimitAccessControl(uint256 _depositLimit) external {
-        _requireTimelock();
-        _revokeDepositAccessControl(_depositLimit);
+    event SetOverBorrowAndLiquidateDelays(
+        uint256 oldOverBorrowDelayAfterAddCollateral,
+        uint256 newOverBorrowDelayAfterAddCollateral,
+        uint256 oldLiquidateDelayAfterBorrow,
+        uint256 newLiquidateDelayAfterBorrow
+    );
+
+    /// @notice The ```setOverBorrowAndLiquidateDelays``` function sets a few protocol delay configurations for over borrow and liquidation
+    /// @param _overBorrowDelayAfterAddCollateral The new over borrow delay after adding collateral
+    /// @param _liquidateDelayAfterBorrow The new liquidate delay after over borrowing
+    function setOverBorrowAndLiquidateDelays(
+        uint256 _overBorrowDelayAfterAddCollateral,
+        uint256 _liquidateDelayAfterBorrow
+    ) external {
+        _requireTimelockOrOwner();
+        emit SetOverBorrowAndLiquidateDelays(
+            overBorrowDelayAfterAddCollateral,
+            _overBorrowDelayAfterAddCollateral,
+            liquidateDelayAfterBorrow,
+            _liquidateDelayAfterBorrow
+        );
+        overBorrowDelayAfterAddCollateral = _overBorrowDelayAfterAddCollateral;
+        liquidateDelayAfterBorrow = _liquidateDelayAfterBorrow;
     }
-
-    // /// @notice The ```pauseRepay``` function pauses repay functionality
-    // /// @param _isPaused The new pause state
-    // function pauseRepay(bool _isPaused) external {
-    //     if (_isPaused) {
-    //         _requireProtocolOrOwner();
-    //     } else {
-    //         _requireTimelockOrOwner();
-    //     }
-    //     if (isRepayAccessControlRevoked) revert AccessControlRevoked();
-    //     _pauseRepay(_isPaused);
-    // }
-
-    // /// @notice The ```revokeRepayAccessControl``` function revokes repay access control
-    // function revokeRepayAccessControl() external {
-    //     _requireTimelock();
-    //     _revokeRepayAccessControl();
-    // }
-
-    // /// @notice The ```pauseWithdraw``` function pauses withdraw functionality
-    // /// @param _isPaused The new pause state
-    // function pauseWithdraw(bool _isPaused) external {
-    //     if (_isPaused) {
-    //         _requireProtocolOrOwner();
-    //     } else {
-    //         _requireTimelockOrOwner();
-    //     }
-    //     if (isWithdrawAccessControlRevoked) revert AccessControlRevoked();
-    //     _pauseWithdraw(_isPaused);
-    // }
-
-    // /// @notice The ```revokeWithdrawAccessControl``` function revokes withdraw access control
-    // function revokeWithdrawAccessControl() external {
-    //     _requireTimelock();
-    //     _revokeWithdrawAccessControl();
-    // }
-
-    // /// @notice The ```pauseLiquidate``` function pauses liquidate functionality
-    // /// @param _isPaused The new pause state
-    // function pauseLiquidate(bool _isPaused) external {
-    //     if (_isPaused) {
-    //         _requireProtocolOrOwner();
-    //     } else {
-    //         _requireTimelockOrOwner();
-    //     }
-    //     if (isLiquidateAccessControlRevoked) revert AccessControlRevoked();
-    //     _pauseLiquidate(_isPaused);
-    // }
-
-    // /// @notice The ```revokeLiquidateAccessControl``` function revokes liquidate access control
-    // function revokeLiquidateAccessControl() external {
-    //     _requireTimelock();
-    //     _revokeLiquidateAccessControl();
-    // }
-
-    // /// @notice The ```pauseInterest``` function pauses interest functionality
-    // /// @param _isPaused The new pause state
-    // function pauseInterest(bool _isPaused) external {
-    //     if (_isPaused) {
-    //         _requireProtocolOrOwner();
-    //     } else {
-    //         currentRateInfo.lastTimestamp = uint64(block.timestamp);
-    //         _requireTimelockOrOwner();
-    //     }
-    //     if (isInterestAccessControlRevoked) revert AccessControlRevoked();
-    //     // Resets the lastTimestamp which has the effect of no interest accruing over the pause period
-    //     _addInterest();
-    //     _pauseInterest(_isPaused);
-    // }
-
-    // /// @notice The ```revokeInterestAccessControl``` function revokes interest access control
-    // function revokeInterestAccessControl() external {
-    //     _requireTimelock();
-    //     _revokeInterestAccessControl();
-    // }
 }

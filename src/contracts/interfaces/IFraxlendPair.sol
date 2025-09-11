@@ -206,8 +206,6 @@ interface IFraxlendPair {
 
     function setTimelock(address _newAddress) external;
 
-    function swappers(address) external view returns (bool);
-
     function symbol() external view returns (string memory);
 
     function toAssetAmount(uint256 _shares, bool _roundUp) external view returns (uint256);
