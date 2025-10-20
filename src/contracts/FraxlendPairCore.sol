@@ -1328,38 +1328,39 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         // Check if withdraw is paused and revert if necessary
         if (isWithdrawPaused) revert WithdrawPaused();
 
-        address _aspTkn = address(collateralContract);
-        IERC4626(_aspTkn).redeem(_amount, address(this), address(this));
-        address _spTkn = IERC4626(_aspTkn).asset();
+        IERC4626(address(collateralContract)).redeem(_amount, address(this), address(this));
+        address _spTkn = IERC4626(address(collateralContract)).asset();
         IStakingPoolToken(_spTkn).unstake(IERC20(_spTkn).balanceOf(address(this)));
         address _uniV2Tkn = IStakingPoolToken(_spTkn).stakingToken();
+        _t0 = IUniswapV2Pair(_uniV2Tkn).token0();
+        _t1 = IUniswapV2Pair(_uniV2Tkn).token1();
+
         address _pod = IStakingPoolToken(_spTkn).INDEX_FUND();
         uint256 _uniV2Amt = IERC20(_uniV2Tkn).balanceOf(address(this));
+
+        uint256 _t0Before = IERC20(_t0).balanceOf(address(this));
+        uint256 _t1Before = IERC20(_t1).balanceOf(address(this));
+
         IERC20(_uniV2Tkn).approve(_pod, _uniV2Amt);
         IDecentralizedIndex(_pod).removeLiquidityV2(_uniV2Amt, 0, 0, block.timestamp);
 
-        _t0 = IUniswapV2Pair(_uniV2Tkn).token0();
-        _t1 = IUniswapV2Pair(_uniV2Tkn).token1();
-        _a0 = IERC20(_t0).balanceOf(address(this));
-        _a1 = IERC20(_t1).balanceOf(address(this));
-
-        // Pull from storage to save gas
-        VaultAccount memory _totalAsset = totalAsset;
+        _a0 = IERC20(_t0).balanceOf(address(this)) - _t0Before;
+        _a1 = IERC20(_t1).balanceOf(address(this)) - _t1Before;
 
         // Calculate the number of assets to transfer based on the shares to burn
         uint256 _shares = _t0 == address(this) ? _a0 : _a1;
 
         // Redeem assets to receiver
         _redeem(
-            _totalAsset,
-            _totalAsset.toAmount(_shares, false).toUint128(),
+            totalAsset,
+            totalAsset.toAmount(_shares, false).toUint128(),
             _shares.toUint128(),
             _receiver,
             address(this),
             true
         );
 
-        // Send the remaining alternative assets in the liquidity pair to the receiver
+        // Send the remaining liquidity pair asset that isn't this supply receipt to the receiver
         IERC20(_t0 == address(this) ? _t1 : _t0).safeTransfer(_receiver, _t0 == address(this) ? _a1 : _a0);
     }
 }
