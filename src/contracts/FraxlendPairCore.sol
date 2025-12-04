@@ -216,11 +216,11 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
     /// @param _totalBorrow VaultAccount struct which stores total amount and shares for borrows
     /// @param _includeVault Whether to include assets from the external asset vault, if configured in total available
     /// @return The balance of Asset Tokens held by contract
-    function _totalAssetAvailable(VaultAccount memory _totalAsset, VaultAccount memory _totalBorrow, bool _includeVault)
-        internal
-        view
-        returns (uint256)
-    {
+    function _totalAssetAvailable(
+        VaultAccount memory _totalAsset,
+        VaultAccount memory _totalBorrow,
+        bool _includeVault
+    ) internal view returns (uint256) {
         if (_includeVault) {
             return _totalAsset.totalAmount(address(externalAssetVault)) - _totalBorrow.amount;
         }
@@ -439,9 +439,8 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
                 _totalAssetsAvailable == 0 ? 0 : (UTIL_PREC * _results.totalBorrow.amount) / _totalAssetsAvailable;
 
             // Request new interest rate and full utilization rate from the rate calculator
-            (_results.newRate, _results.newFullUtilizationRate) = IRateCalculatorV2(rateContract).getNewRate(
-                _deltaTime, _utilizationRate, _currentRateInfo.fullUtilizationRate
-            );
+            (_results.newRate, _results.newFullUtilizationRate) = IRateCalculatorV2(rateContract)
+                .getNewRate(_deltaTime, _utilizationRate, _currentRateInfo.fullUtilizationRate);
 
             // Calculate interest accrued
             _results.interestEarned = (_deltaTime * _results.totalBorrow.amount * _results.newRate) / RATE_PRECISION;
@@ -586,9 +585,9 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
             _highExchangeRate = _exchangeRateInfo.highExchangeRate;
         }
 
-        uint256 _deviation = (
-            DEVIATION_PRECISION * (_exchangeRateInfo.highExchangeRate - _exchangeRateInfo.lowExchangeRate)
-        ) / _exchangeRateInfo.highExchangeRate;
+        uint256 _deviation =
+            (DEVIATION_PRECISION * (_exchangeRateInfo.highExchangeRate - _exchangeRateInfo.lowExchangeRate))
+                / _exchangeRateInfo.highExchangeRate;
         if (_deviation <= _exchangeRateInfo.maxOracleDeviation) {
             _isBorrowAllowed = true;
         }
@@ -1256,6 +1255,9 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
 
         // if desired unwind collateral we're removing before processing bad debt and send remaining assets to msg.sender
         if (_unwindBeforeDerating) {
+            if (_borrower == msg.sender) {
+                revert LiquidatorCannotBeBorrower(_borrower);
+            }
             _removeCollateral(_collateralForLiquidator, address(this), _borrower);
             _unwindAndSendCollateral(_collateralForLiquidator, msg.sender);
         }
@@ -1348,6 +1350,9 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         _a1 = IERC20(_t1).balanceOf(address(this)) - _t1Before;
 
         // Calculate the number of assets to transfer based on the shares to burn
+        if (_t0 != address(this) && _t1 != address(this)) {
+            revert CollateralRequiresPair();
+        }
         uint256 _shares = _t0 == address(this) ? _a0 : _a1;
 
         // Redeem assets to receiver

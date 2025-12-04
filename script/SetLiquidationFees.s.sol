@@ -25,12 +25,13 @@ contract SetLiquidationFees is Script {
             "minCollateralRequiredOnDirtyLiquidation", FraxlendPair(pair).minCollateralRequiredOnDirtyLiquidation()
         );
 
-        FraxlendPair(pair).setLiquidationFees(
-            cleanLiqFee,
-            cleanLiqFee * 9 / 10,
-            protocolLiqFee,
-            FraxlendPair(pair).minCollateralRequiredOnDirtyLiquidation()
-        );
+        FraxlendPair(pair)
+            .setLiquidationFees(
+                cleanLiqFee,
+                cleanLiqFee * 9 / 10,
+                protocolLiqFee,
+                FraxlendPair(pair).minCollateralRequiredOnDirtyLiquidation()
+            );
 
         console2.log("NEW cleanLiquidationFee", FraxlendPair(pair).cleanLiquidationFee());
         console2.log("NEW dirtyLiquidationFee", FraxlendPair(pair).dirtyLiquidationFee());
