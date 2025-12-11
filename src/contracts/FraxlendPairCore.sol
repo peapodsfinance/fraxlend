@@ -85,7 +85,7 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
     uint256 public minURChangeForExternalAddInterest = UTIL_PREC / 1000;
 
     // Stores block of last added collateral to position, and then determines how long required to wait
-    // until a user can borrow > 50% LTV after adding collateral to prevent attack/exploitation
+    // until a user can borrow > 51% LTV after adding collateral to prevent attack/exploitation
     mapping(address => uint256) _lastAddCollateral;
     uint256 public overBorrowDelayAfterAddCollateral = 1;
 
@@ -216,11 +216,11 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
     /// @param _totalBorrow VaultAccount struct which stores total amount and shares for borrows
     /// @param _includeVault Whether to include assets from the external asset vault, if configured in total available
     /// @return The balance of Asset Tokens held by contract
-    function _totalAssetAvailable(VaultAccount memory _totalAsset, VaultAccount memory _totalBorrow, bool _includeVault)
-        internal
-        view
-        returns (uint256)
-    {
+    function _totalAssetAvailable(
+        VaultAccount memory _totalAsset,
+        VaultAccount memory _totalBorrow,
+        bool _includeVault
+    ) internal view returns (uint256) {
         if (_includeVault) {
             return _totalAsset.totalAmount(address(externalAssetVault)) - _totalBorrow.amount;
         }
@@ -281,8 +281,8 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         uint256 _collateralAmount = userCollateralBalance[_borrower];
         uint256 _ltv = (((_borrowerAmount * _exchangeRateInfo.highExchangeRate) / EXCHANGE_PRECISION) * LTV_PRECISION)
             / _collateralAmount;
-        // if borrow amount > 50% LTV make sure user has waited required delay first
-        if (_ltv > LTV_PRECISION / 2) {
+        // if borrow amount > 51% LTV make sure user has waited required delay first
+        if (_ltv > LTV_PRECISION * 51 / 100) {
             if (block.number < _lastAddCollateral[_borrower] + overBorrowDelayAfterAddCollateral) {
                 revert MustWaitToOverBorrow(_lastAddCollateral[_borrower], overBorrowDelayAfterAddCollateral);
             }
@@ -439,9 +439,8 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
                 _totalAssetsAvailable == 0 ? 0 : (UTIL_PREC * _results.totalBorrow.amount) / _totalAssetsAvailable;
 
             // Request new interest rate and full utilization rate from the rate calculator
-            (_results.newRate, _results.newFullUtilizationRate) = IRateCalculatorV2(rateContract).getNewRate(
-                _deltaTime, _utilizationRate, _currentRateInfo.fullUtilizationRate
-            );
+            (_results.newRate, _results.newFullUtilizationRate) = IRateCalculatorV2(rateContract)
+                .getNewRate(_deltaTime, _utilizationRate, _currentRateInfo.fullUtilizationRate);
 
             // Calculate interest accrued
             _results.interestEarned = (_deltaTime * _results.totalBorrow.amount * _results.newRate) / RATE_PRECISION;
@@ -586,9 +585,9 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
             _highExchangeRate = _exchangeRateInfo.highExchangeRate;
         }
 
-        uint256 _deviation = (
-            DEVIATION_PRECISION * (_exchangeRateInfo.highExchangeRate - _exchangeRateInfo.lowExchangeRate)
-        ) / _exchangeRateInfo.highExchangeRate;
+        uint256 _deviation =
+            (DEVIATION_PRECISION * (_exchangeRateInfo.highExchangeRate - _exchangeRateInfo.lowExchangeRate))
+                / _exchangeRateInfo.highExchangeRate;
         if (_deviation <= _exchangeRateInfo.maxOracleDeviation) {
             _isBorrowAllowed = true;
         }
@@ -1145,15 +1144,52 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         uint256 _amountToAdjust
     );
 
+    /// @notice The ```liquidate``` function allows a third party to repay a borrower's debt when they become insolvent and receive collateral in return
+    /// @dev Liquidator must invoke ```ERC20.approve()``` on the Asset Token contract prior to calling this function
+    /// @dev Requires that the borrower is insolvent (LTV exceeds maxLTV) and that sufficient time has passed since their last borrow
+    /// @dev The liquidator pays back debt and receives collateral plus a liquidation fee (cleanLiquidationFee for full liquidations, dirtyLiquidationFee otherwise)
+    /// @dev A portion of the liquidation fee may be allocated to protocol if protocolLiquidationFee is set
+    /// @dev This function will revert if: liquidation is paused, deadline has passed, borrower is solvent, or insufficient delay after borrow
+    /// @param _sharesToLiquidate The number of Borrow Shares to be repaid by the liquidator on behalf of the borrower
+    /// @param _deadline The Unix timestamp after which the transaction will revert to prevent stale liquidations
+    /// @param _borrower The address of the insolvent borrower whose position is being liquidated
+    /// @return _collateralForLiquidator The amount of Collateral Token transferred to the liquidator (net of protocol fees)
+    function liquidate(uint128 _sharesToLiquidate, uint256 _deadline, address _borrower)
+        external
+        nonReentrant
+        returns (uint256 _collateralForLiquidator)
+    {
+        return _liquidate(_sharesToLiquidate, _deadline, _borrower, false);
+    }
+
+    /// @notice The ```liquidateAndWithdraw``` function liquidates an insolvent position and unwinds the collateral before potentially realizing bad debt
+    /// @dev Liquidator must invoke ```ERC20.approve()``` on the Asset Token contract prior to calling this function
+    /// @dev This function is particularly useful for self-lending pairs where collateral is the pair's own supply receipt (ERC4626 autocompounding LP)
+    /// @dev Unlike ```liquidate()```, this function redeems/unwinds the collateral asset before processing potential bad debt writeoffs
+    /// @dev The unwinding process: redeems ERC4626 shares -> unstakes from staking pool -> removes LP liquidity -> returns underlying assets
+    /// @dev Requires that the borrower is insolvent (LTV exceeds maxLTV) and that sufficient time has passed since their last borrow
+    /// @dev This function will revert if: liquidation is paused, withdrawal is paused, deadline has passed, borrower is solvent, or insufficient delay after borrow
+    /// @param _sharesToLiquidate The number of Borrow Shares to be repaid by the liquidator on behalf of the borrower
+    /// @param _deadline The Unix timestamp after which the transaction will revert to prevent stale liquidations
+    /// @param _borrower The address of the insolvent borrower whose position is being liquidated
+    /// @return _collateralForLiquidator The amount of Collateral Token that was unwound and whose underlying assets were transferred to the liquidator
+    function liquidateAndWithdraw(uint128 _sharesToLiquidate, uint256 _deadline, address _borrower)
+        external
+        nonReentrant
+        returns (uint256 _collateralForLiquidator)
+    {
+        return _liquidate(_sharesToLiquidate, _deadline, _borrower, true);
+    }
+
     /// @notice The ```liquidate``` function allows a third party to repay a borrower's debt if they have become insolvent
     /// @dev Caller must invoke ```ERC20.approve``` on the Asset Token contract prior to calling ```Liquidate()```
     /// @param _sharesToLiquidate The number of Borrow Shares repaid by the liquidator
     /// @param _deadline The timestamp after which tx will revert
     /// @param _borrower The account for which the repayment is credited and from whom collateral will be taken
+    /// @param _unwindBeforeDerating Whether to unwind the collateral asset before potentially realizing bad debt on shares
     /// @return _collateralForLiquidator The amount of Collateral Token transferred to the liquidator
-    function liquidate(uint128 _sharesToLiquidate, uint256 _deadline, address _borrower)
-        external
-        nonReentrant
+    function _liquidate(uint128 _sharesToLiquidate, uint256 _deadline, address _borrower, bool _unwindBeforeDerating)
+        internal
         returns (uint256 _collateralForLiquidator)
     {
         if (_borrower == address(0)) revert InvalidReceiver();
@@ -1185,8 +1221,6 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
 
         // Read from state
         VaultAccount memory _totalBorrow = totalBorrow;
-        uint256 _userCollateralBalance = userCollateralBalance[_borrower];
-        uint128 _borrowerShares = userBorrowShares[_borrower].toUint128();
 
         // Prevent stack-too-deep
         int256 _leftoverCollateral;
@@ -1204,18 +1238,28 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
 
             // Because interest accrues every block, _liquidationAmountInCollateralUnits from a few lines up is an ever increasing value
             // This means that leftoverCollateral can occasionally go negative by a few hundred wei (cleanLiqFee premium covers this for liquidator)
-            _leftoverCollateral = (_userCollateralBalance.toInt256() - _optimisticCollateralForLiquidator.toInt256());
+            _leftoverCollateral =
+                (userCollateralBalance[_borrower].toInt256() - _optimisticCollateralForLiquidator.toInt256());
 
             // If cleanLiquidation fee results in no leftover collateral, give liquidator all the collateral
             // This will only be true when there liquidator is cleaning out the position
             _collateralForLiquidator = _leftoverCollateral <= 0
-                ? _userCollateralBalance
+                ? userCollateralBalance[_borrower]
                 : (_liquidationAmountInCollateralUnits * (LIQ_PRECISION + dirtyLiquidationFee)) / LIQ_PRECISION;
 
             if (protocolLiquidationFee > 0) {
                 _feesAmount = (protocolLiquidationFee * _collateralForLiquidator) / LIQ_PRECISION;
                 _collateralForLiquidator = _collateralForLiquidator - _feesAmount;
             }
+        }
+
+        // if desired unwind collateral we're removing before processing bad debt and send remaining assets to msg.sender
+        if (_unwindBeforeDerating) {
+            if (_borrower == msg.sender) {
+                revert LiquidatorCannotBeBorrower(_borrower);
+            }
+            _removeCollateral(_collateralForLiquidator, address(this), _borrower);
+            _unwindAndSendCollateral(_collateralForLiquidator, msg.sender);
         }
 
         // Calculated here for use during repayment, grouped with other calcs before effects start
@@ -1227,7 +1271,7 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
             uint128 _amountToAdjust = 0;
             if (_leftoverCollateral <= 0) {
                 // Determine if we need to adjust any shares
-                _sharesToAdjust = _borrowerShares - _sharesToLiquidate;
+                _sharesToAdjust = userBorrowShares[_borrower].toUint128() - _sharesToLiquidate;
                 if (_sharesToAdjust > 0) {
                     // Write off bad debt
                     _amountToAdjust = (_totalBorrow.toAmount(_sharesToAdjust, false)).toUint128();
@@ -1255,10 +1299,11 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         // Effects & Interactions
         // NOTE: reverts if _shares > userBorrowShares
         _repayAsset(_totalBorrow, _amountLiquidatorToRepay, _sharesToLiquidate + _sharesToAdjust, msg.sender, _borrower); // liquidator repays shares on behalf of borrower
-        // NOTE: reverts if _collateralForLiquidator > userCollateralBalance
         // Collateral is removed on behalf of borrower and sent to liquidator
         // NOTE: reverts if _collateralForLiquidator > userCollateralBalance
-        _removeCollateral(_collateralForLiquidator, msg.sender, _borrower);
+        if (!_unwindBeforeDerating) {
+            _removeCollateral(_collateralForLiquidator, msg.sender, _borrower);
+        }
         // Adjust bookkeeping only (decreases collateral held by borrower)
         _removeCollateral(_feesAmount, address(this), _borrower);
         // Adjusts bookkeeping only (increases collateral held by protocol)
@@ -1268,4 +1313,83 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
             externalAssetVault.whitelistUpdate(false);
         }
     }
+
+    /// @notice The ```_unwindAndSendCollateral``` function will unwind collateral asset, which for Peapods LVF pods is an
+    /// autocompounding LP ERC4626 asset. This is most significant and important for self lending pods in which the collateral
+    /// is made up of this pair's supply receipt, and this can be used to redeem assets before realizing bad debt on a liquidation.
+    /// @param _amount The number of collateral assets to unwind
+    /// @param _receiver The receiver of the unwound assets
+    /// @return _t0 The 0th asset in the liquidity pair
+    /// @return _t1 The 1st asset in the liquidity pair
+    /// @return _a0 The amount of the 0th asset we're returning
+    /// @return _a1 The amount of the 1st asset we're returning
+    function _unwindAndSendCollateral(uint256 _amount, address _receiver)
+        internal
+        returns (address _t0, address _t1, uint256 _a0, uint256 _a1)
+    {
+        // Check if withdraw is paused and revert if necessary
+        if (isWithdrawPaused) revert WithdrawPaused();
+
+        IERC4626(address(collateralContract)).redeem(_amount, address(this), address(this));
+        address _spTkn = IERC4626(address(collateralContract)).asset();
+        IStakingPoolToken(_spTkn).unstake(IERC20(_spTkn).balanceOf(address(this)));
+        address _uniV2Tkn = IStakingPoolToken(_spTkn).stakingToken();
+        _t0 = IUniswapV2Pair(_uniV2Tkn).token0();
+        _t1 = IUniswapV2Pair(_uniV2Tkn).token1();
+
+        address _pod = IStakingPoolToken(_spTkn).INDEX_FUND();
+        uint256 _uniV2Amt = IERC20(_uniV2Tkn).balanceOf(address(this));
+
+        uint256 _t0Before = IERC20(_t0).balanceOf(address(this));
+        uint256 _t1Before = IERC20(_t1).balanceOf(address(this));
+
+        IERC20(_uniV2Tkn).approve(_pod, _uniV2Amt);
+        IDecentralizedIndex(_pod).removeLiquidityV2(_uniV2Amt, 0, 0, block.timestamp);
+
+        _a0 = IERC20(_t0).balanceOf(address(this)) - _t0Before;
+        _a1 = IERC20(_t1).balanceOf(address(this)) - _t1Before;
+
+        // Calculate the number of assets to transfer based on the shares to burn
+        if (_t0 != address(this) && _t1 != address(this)) {
+            revert CollateralRequiresPair();
+        }
+        uint256 _shares = _t0 == address(this) ? _a0 : _a1;
+
+        // Redeem assets to receiver
+        _redeem(
+            totalAsset,
+            totalAsset.toAmount(_shares, false).toUint128(),
+            _shares.toUint128(),
+            _receiver,
+            address(this),
+            true
+        );
+
+        // Send the remaining liquidity pair asset that isn't this supply receipt to the receiver
+        IERC20(_t0 == address(this) ? _t1 : _t0).safeTransfer(_receiver, _t0 == address(this) ? _a1 : _a0);
+    }
+}
+
+interface IERC4626 {
+    function asset() external view returns (address);
+
+    function redeem(uint256 _shares, address _receiver, address _owner) external returns (uint256 _amountToReturn);
+}
+
+interface IDecentralizedIndex {
+    function removeLiquidityV2(uint256 lpTokens, uint256 minTokens, uint256 minDAI, uint256 deadline) external;
+}
+
+interface IStakingPoolToken {
+    function INDEX_FUND() external view returns (address);
+
+    function stakingToken() external view returns (address);
+
+    function unstake(uint256 amount) external;
+}
+
+interface IUniswapV2Pair {
+    function token0() external view returns (address);
+
+    function token1() external view returns (address);
 }

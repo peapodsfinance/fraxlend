@@ -21,9 +21,7 @@ contract PairInfo is Script {
         (address oracle,,, uint256 lowExchangeRate, uint256 highExchangeRate) = FraxlendPair(pair).exchangeRateInfo();
 
         (
-            ,
-            ,
-            ,
+            ,,,
             FraxlendPair.CurrentRateInfo memory _newCurrentRateInfo,
             VaultAccount memory _totalAsset,
             VaultAccount memory _totalBorrow

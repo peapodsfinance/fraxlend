@@ -16,11 +16,12 @@ contract PairWithdrawScript is Script {
         uint256 amount = vm.envUint("AMOUNT");
 
         // Perform withdrawal
-        FraxlendPair(pair).withdraw(
-            amount,
-            msg.sender, // receiver
-            msg.sender // owner
-        );
+        FraxlendPair(pair)
+            .withdraw(
+                amount,
+                msg.sender, // receiver
+                msg.sender // owner
+            );
         console2.log("Withdrawal complete! Amount:", amount);
 
         vm.stopBroadcast();

@@ -23,9 +23,8 @@ contract PairLiquidateScript is Script {
         IERC20(FraxlendPair(pair).asset()).approve(pair, amountNeeded);
 
         // Perform deposit
-        uint256 _collForLiquidation = FraxlendPair(pair).liquidate(
-            uint128(FraxlendPair(pair).userBorrowShares(victim)), block.timestamp + 1 days, victim
-        );
+        uint256 _collForLiquidation = FraxlendPair(pair)
+            .liquidate(uint128(FraxlendPair(pair).userBorrowShares(victim)), block.timestamp + 1 days, victim);
         console2.log("Liquidate complete! Amount received:", _collForLiquidation);
 
         vm.stopBroadcast();
