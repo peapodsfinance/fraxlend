@@ -1233,21 +1233,40 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
             uint256 _liquidationAmountInCollateralUnits =
                 ((_totalBorrow.toAmount(_sharesToLiquidate, false) * _exchangeRate) / EXCHANGE_PRECISION);
 
+            // Calculate borrower's current LTV and max allowed liquidation fee
+            uint256 _borrowerCollateral = userCollateralBalance[_borrower];
+            uint256 _maxAllowedLiquidationFee;
+            {
+                uint256 _borrowerTotalDebt = _totalBorrow.toAmount(userBorrowShares[_borrower], true);
+                uint256 _currentLTV =
+                    (((_borrowerTotalDebt * _exchangeRate) / EXCHANGE_PRECISION) * LTV_PRECISION) / _borrowerCollateral;
+
+                // If LTV >= 100%, maxFee = 0 (no profit for liquidator, bad debt scenario)
+                // If LTV < 100%, maxFee = (100% - LTV) as a percentage
+                _maxAllowedLiquidationFee = _currentLTV >= LTV_PRECISION ? 0 : (LTV_PRECISION - _currentLTV);
+            }
+
+            // Cap the liquidation fees at the max allowed fee
+            uint256 _effectiveCleanLiquidationFee =
+                cleanLiquidationFee > _maxAllowedLiquidationFee ? _maxAllowedLiquidationFee : cleanLiquidationFee;
+            uint256 _effectiveDirtyLiquidationFee =
+                dirtyLiquidationFee > _maxAllowedLiquidationFee ? _maxAllowedLiquidationFee : dirtyLiquidationFee;
+
             // We first optimistically calculate the amount of collateral to give the liquidator based on the higher clean liquidation fee
             // This fee only applies if the liquidator does a full liquidation
             uint256 _optimisticCollateralForLiquidator =
-                (_liquidationAmountInCollateralUnits * (LIQ_PRECISION + cleanLiquidationFee)) / LIQ_PRECISION;
+                (_liquidationAmountInCollateralUnits * (LIQ_PRECISION + _effectiveCleanLiquidationFee)) / LIQ_PRECISION;
 
             // Because interest accrues every block, _liquidationAmountInCollateralUnits from a few lines up is an ever increasing value
             // This means that leftoverCollateral can occasionally go negative by a few hundred wei (cleanLiqFee premium covers this for liquidator)
-            _leftoverCollateral =
-            (userCollateralBalance[_borrower].toInt256() - _optimisticCollateralForLiquidator.toInt256());
+            _leftoverCollateral = (_borrowerCollateral.toInt256() - _optimisticCollateralForLiquidator.toInt256());
 
             // If cleanLiquidation fee results in no leftover collateral, give liquidator all the collateral
             // This will only be true when there liquidator is cleaning out the position
             _collateralForLiquidator = _leftoverCollateral <= 0
-                ? userCollateralBalance[_borrower]
-                : (_liquidationAmountInCollateralUnits * (LIQ_PRECISION + dirtyLiquidationFee)) / LIQ_PRECISION;
+                ? _borrowerCollateral
+                : (_liquidationAmountInCollateralUnits * (LIQ_PRECISION + _effectiveDirtyLiquidationFee))
+                    / LIQ_PRECISION;
 
             if (protocolLiquidationFee > 0) {
                 _feesAmount = (protocolLiquidationFee * _collateralForLiquidator) / LIQ_PRECISION;
