@@ -216,11 +216,11 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
     /// @param _totalBorrow VaultAccount struct which stores total amount and shares for borrows
     /// @param _includeVault Whether to include assets from the external asset vault, if configured in total available
     /// @return The balance of Asset Tokens held by contract
-    function _totalAssetAvailable(
-        VaultAccount memory _totalAsset,
-        VaultAccount memory _totalBorrow,
-        bool _includeVault
-    ) internal view returns (uint256) {
+    function _totalAssetAvailable(VaultAccount memory _totalAsset, VaultAccount memory _totalBorrow, bool _includeVault)
+        internal
+        view
+        returns (uint256)
+    {
         if (_includeVault) {
             return _totalAsset.totalAmount(address(externalAssetVault)) - _totalBorrow.amount;
         }
@@ -1183,6 +1183,8 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
 
     /// @notice The ```liquidate``` function allows a third party to repay a borrower's debt if they have become insolvent
     /// @dev Caller must invoke ```ERC20.approve``` on the Asset Token contract prior to calling ```Liquidate()```
+    /// @dev Not Intended to be called via EOA, Calling Contracts are encouraged to implement appropriate checks
+    ///      on the return value from this function
     /// @param _sharesToLiquidate The number of Borrow Shares repaid by the liquidator
     /// @param _deadline The timestamp after which tx will revert
     /// @param _borrower The account for which the repayment is credited and from whom collateral will be taken
@@ -1239,7 +1241,7 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
             // Because interest accrues every block, _liquidationAmountInCollateralUnits from a few lines up is an ever increasing value
             // This means that leftoverCollateral can occasionally go negative by a few hundred wei (cleanLiqFee premium covers this for liquidator)
             _leftoverCollateral =
-                (userCollateralBalance[_borrower].toInt256() - _optimisticCollateralForLiquidator.toInt256());
+            (userCollateralBalance[_borrower].toInt256() - _optimisticCollateralForLiquidator.toInt256());
 
             // If cleanLiquidation fee results in no leftover collateral, give liquidator all the collateral
             // This will only be true when there liquidator is cleaning out the position
