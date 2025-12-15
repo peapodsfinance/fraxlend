@@ -1,0 +1,87 @@
+name: Tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out github repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
+
+      - name: Install node
+        uses: actions/setup-node@v3
+        with:
+          node-version: "18.x"
+          cache: yarn
+          cache-dependency-path: "**/yarn.lock"
+
+      - name: Install dependencies
+        run: yarn --frozen-lockfile
+
+      - name: Run unit tests
+        run: yarn test:unit
+        env:
+          TS_NODE_SKIP_IGNORE: true
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out github repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
+
+      - name: Install node
+        uses: actions/setup-node@v3
+        with:
+          node-version: "18.x"
+          cache: yarn
+          cache-dependency-path: "**/yarn.lock"
+
+      - name: Install dependencies
+        run: yarn --frozen-lockfile
+
+      - name: Run e2e tests
+        run: yarn test:e2e
+        env:
+          TS_NODE_SKIP_IGNORE: true
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out github repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
+
+      - name: Install node
+        uses: actions/setup-node@v3
+        with:
+          node-version: "18.x"
+          cache: yarn
+          cache-dependency-path: "**/yarn.lock"
+
+      - name: Cache hardhat network fork
+        uses: actions/cache@v3
+        env:
+          cache-name: cache-hardhat-network-fork
+        with:
+          path: cache/hardhat-network-fork
+          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('test/integration') }}
+
+      - name: Install dependencies
+        run: yarn --frozen-lockfile
+
+      - name: Run integration tests
+        run: yarn test:integration
+        env:
+          TS_NODE_SKIP_IGNORE: true
+          NODE_URI_ETHEREUM: https://eth-mainnet.alchemyapi.io/v2/${{ secrets.ALCHEMYKEY }}
+          NODE_URI_OPTIMISM: https://opt-mainnet.g.alchemy.com/v2/${{ secrets.ALCHEMYKEY }}
+          NODE_URI_ARBITRUM: https://arb-mainnet.g.alchemy.com/v2/${{ secrets.ALCHEMYKEY }}
+          NODE_URI_POLYGON: https://polygon-mainnet.g.alchemy.com/v2/${{ secrets.ALCHEMYKEY }}
