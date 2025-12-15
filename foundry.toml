@@ -1,7 +1,6 @@
 [profile.default]
 evm_version = 'cancun'
-src = 'src/contracts'
-test = 'src/test'
+src = 'src'
 out = 'out'
 libs = ['lib']
 #block number

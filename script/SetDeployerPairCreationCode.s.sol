@@ -3,10 +3,10 @@ pragma solidity ^0.8.0;
 
 import {Script} from "forge-std/Script.sol";
 import {console2} from "forge-std/console2.sol";
-import {ConstructorParams, FraxlendPairDeployer} from "../src/contracts/FraxlendPairDeployer.sol";
-import {FraxlendPairRegistry} from "../src/contracts/FraxlendPairRegistry.sol";
-import {FraxlendWhitelist} from "../src/contracts/FraxlendWhitelist.sol";
-import {FraxlendPair} from "../src/contracts/FraxlendPair.sol";
+import {ConstructorParams, FraxlendPairDeployer} from "../src/FraxlendPairDeployer.sol";
+import {FraxlendPairRegistry} from "../src/FraxlendPairRegistry.sol";
+import {FraxlendWhitelist} from "../src/FraxlendWhitelist.sol";
+import {FraxlendPair} from "../src/FraxlendPair.sol";
 
 contract SetDeployerPairCreationCode is Script {
     function setUp() public {}

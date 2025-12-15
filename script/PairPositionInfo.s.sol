@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import {Script} from "forge-std/Script.sol";
 import {console2} from "forge-std/console2.sol";
-import {FraxlendPair} from "../src/contracts/FraxlendPair.sol";
+import {FraxlendPair} from "../src/FraxlendPair.sol";
 
 contract PairPositionInfoScript is Script {
     function setUp() public {}

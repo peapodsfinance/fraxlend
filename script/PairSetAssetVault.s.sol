@@ -3,8 +3,8 @@ pragma solidity ^0.8.0;
 
 import {Script} from "forge-std/Script.sol";
 import {console2} from "forge-std/console2.sol";
-import {FraxlendPair} from "../src/contracts/FraxlendPair.sol";
-import {IERC4626Extended} from "../src/contracts/interfaces/IERC4626Extended.sol";
+import {FraxlendPair} from "../src/FraxlendPair.sol";
+import {IERC4626Extended} from "../src/interfaces/IERC4626Extended.sol";
 
 contract PairSetAssetVaultScript is Script {
     function setUp() public {}

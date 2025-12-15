@@ -3,8 +3,8 @@ pragma solidity ^0.8.0;
 
 import {Script} from "forge-std/Script.sol";
 import {console2} from "forge-std/console2.sol";
-import {FraxlendPair} from "../src/contracts/FraxlendPair.sol";
-import {VaultAccount, VaultAccountingLibrary} from "../src/contracts/libraries/VaultAccount.sol";
+import {FraxlendPair} from "../src/FraxlendPair.sol";
+import {VaultAccount, VaultAccountingLibrary} from "../src/libraries/VaultAccount.sol";
 
 contract SetLiquidationFees is Script {
     function setUp() public {}

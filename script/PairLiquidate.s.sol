@@ -4,8 +4,8 @@ pragma solidity ^0.8.0;
 import {Script} from "forge-std/Script.sol";
 import {console2} from "forge-std/console2.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {FraxlendPair} from "../src/contracts/FraxlendPair.sol";
-import {VaultAccount, VaultAccountingLibrary} from "../src/contracts/libraries/VaultAccount.sol";
+import {FraxlendPair} from "../src/FraxlendPair.sol";
+import {VaultAccount, VaultAccountingLibrary} from "../src/libraries/VaultAccount.sol";
 
 contract PairLiquidateScript is Script {
     using VaultAccountingLibrary for VaultAccount;
