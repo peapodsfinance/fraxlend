@@ -3,7 +3,7 @@ evm_version = 'cancun'
 src = 'src/contracts'
 test = 'src/test'
 out = 'out'
-libs = ['node_modules', 'lib']
+libs = ['lib']
 #block number
 block_number = 100
 # The block timestamp in tests
