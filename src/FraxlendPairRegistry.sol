@@ -23,7 +23,7 @@ pragma solidity ^0.8.19;
 // ====================================================================
 
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
+import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 
 contract FraxlendPairRegistry is Ownable2Step {
     /// @notice addresses of deployers allowed to add to the registry
@@ -35,11 +35,10 @@ contract FraxlendPairRegistry is Ownable2Step {
     /// @notice name => deployed address
     mapping(string => address) public deployedPairsByName;
 
-    constructor(address _ownerAddress, address[] memory _initialDeployers) Ownable2Step() {
+    constructor(address _ownerAddress, address[] memory _initialDeployers) Ownable(_ownerAddress) {
         for (uint256 i = 0; i < _initialDeployers.length; i++) {
             deployers[_initialDeployers[i]] = true;
         }
-        _transferOwnership(_ownerAddress);
     }
 
     // ============================================================================================

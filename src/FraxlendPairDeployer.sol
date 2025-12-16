@@ -92,7 +92,7 @@ contract FraxlendPairDeployer is Ownable {
     /// @notice List of the names of all deployed Pairs
     address[] public deployedPairsArray;
 
-    constructor(ConstructorParams memory _params) Ownable() {
+    constructor(ConstructorParams memory _params) Ownable(msg.sender) {
         circuitBreakerAddress = _params.circuitBreaker;
         comptrollerAddress = _params.comptroller;
         timelockAddress = _params.timelock;

@@ -66,6 +66,6 @@ library SafeERC20 {
     }
 
     function safeApprove(IERC20 token, address to, uint256 value) internal {
-        OZSafeERC20.safeApprove(token, to, value);
+        OZSafeERC20.forceApprove(token, to, value);
     }
 }

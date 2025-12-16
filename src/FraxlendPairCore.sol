@@ -27,7 +27,7 @@ pragma solidity ^0.8.19;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {FraxlendPairAccessControl} from "./FraxlendPairAccessControl.sol";
 import {FraxlendPairConstants} from "./FraxlendPairConstants.sol";
@@ -36,6 +36,8 @@ import {SafeERC20} from "./libraries/SafeERC20.sol";
 import {IDualOracle} from "./interfaces/IDualOracle.sol";
 import {IRateCalculatorV2} from "./interfaces/IRateCalculatorV2.sol";
 import {ISwapper} from "./interfaces/ISwapper.sol";
+import {IERC3156FlashBorrower} from "./interfaces/IERC3156FlashBorrower.sol";
+import {IERC3156FlashLender} from "./interfaces/IERC3156FlashLender.sol";
 
 /// @title FraxlendPairCore
 /// @author Drake Evans (Frax Finance) https://github.com/drakeevans
@@ -58,6 +60,19 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
     // Asset and collateral contracts
     IERC20 internal immutable assetContract;
     IERC20 public immutable collateralContract;
+
+    // Deposit and Withdraw Fees
+    /// @notice The deposit fee as a percentage of deposit amount (1e5 precision, e.g., 100 = 0.1%)
+    /// @dev Total fee charged on deposits, cannot be changed after deployment
+    uint256 public immutable depositFee;
+
+    /// @notice The withdraw fee as a percentage of withdraw amount (1e5 precision, e.g., 100 = 0.1%)
+    /// @dev Total fee charged on withdrawals, cannot be changed after deployment
+    uint256 public immutable withdrawFee;
+
+    /// @notice The portion of deposit/withdraw fees that goes to protocol (1e5 precision, e.g., 50000 = 50%)
+    /// @dev The remainder improves the vault's collateral backing ratio (CBR) for all share holders. Can be changed by timelock.
+    uint256 public depositWithdrawProtocolFee;
 
     // LTV Settings
     /// @notice The maximum LTV allowed for this pair before insolvency, and optional max borrow
@@ -147,7 +162,7 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
     // ============================================================================================
 
     /// @notice The ```constructor``` function is called on deployment
-    /// @param _configData abi.encode(address _asset, address _collateral, address _oracle, uint32 _maxOracleDeviation, address _rateContract, uint64 _fullUtilizationRate, uint256 _maxLTV, uint256 _cleanLiquidationFee, uint256 _dirtyLiquidationFee, uint256 _protocolLiquidationFee)
+    /// @param _configData abi.encode(address _asset, address _collateral, address _oracle, uint32 _maxOracleDeviation, address _rateContract, uint64 _fullUtilizationRate, uint256 _maxLTV, uint256 _cleanLiquidationFee, uint256 _dirtyLiquidationFee, uint256 _protocolLiquidationFee, uint256 _depositFee, uint256 _withdrawFee)
     /// @param _immutables abi.encode(address _circuitBreakerAddress, address _comptrollerAddress, address _timelockAddress)
     /// @param _customConfigData abi.encode(string memory _nameOfContract, string memory _symbolOfContract, uint8 _decimalsOfContract)
     constructor(bytes memory _configData, bytes memory _immutables, bytes memory _customConfigData)
@@ -165,14 +180,33 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
                 uint256 _maxLTV,
                 uint256 _maxBorrowLTV,
                 uint256 _liquidationFee,
-                uint256 _protocolLiquidationFee
+                uint256 _protocolLiquidationFee,
+                uint256 _depositFee,
+                uint256 _withdrawFee
             ) = abi.decode(
-                _configData, (address, address, address, uint32, address, uint64, uint256, uint256, uint256, uint256)
+                _configData,
+                (
+                    address,
+                    address,
+                    address,
+                    uint32,
+                    address,
+                    uint64,
+                    uint256,
+                    uint256,
+                    uint256,
+                    uint256,
+                    uint256,
+                    uint256
+                )
             );
 
             // Pair Settings
             assetContract = IERC20(_asset);
             collateralContract = IERC20(_collateral);
+
+            depositFee = _depositFee;
+            withdrawFee = _withdrawFee;
 
             currentRateInfo.feeToProtocolRate = 1e4; // 10%
             currentRateInfo.fullUtilizationRate = _fullUtilizationRate;
@@ -607,7 +641,7 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
     /// @notice The ```_deposit``` function is the internal implementation for lending assets
     /// @dev Caller must invoke ```ERC20.approve``` on the Asset Token contract prior to calling function
     /// @param _totalAsset An in memory VaultAccount struct representing the total amounts and shares for the Asset Token
-    /// @param _amount The amount of Asset Token to be transferred
+    /// @param _amount The amount of Asset Token to be transferred (before fees)
     /// @param _shares The amount of Asset Shares (fTokens) to be minted
     /// @param _receiver The address to receive the Asset Shares (fTokens)
     /// @param _shouldTransfer Whether asset tokens should be deposited from the sender
@@ -618,8 +652,33 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         address _receiver,
         bool _shouldTransfer
     ) internal {
+        // Handle deposit fee if configured
+        uint256 _depositFeeAmount = 0;
+        uint256 _amountAfterFee = _amount;
+        if (depositFee > 0 && _shouldTransfer) {
+            _depositFeeAmount = (_amount * depositFee) / FEE_PRECISION;
+            _amountAfterFee = _amount - _depositFeeAmount;
+
+            // Calculate protocol portion of fee
+            uint256 _protocolFeeAmount = (_depositFeeAmount * depositWithdrawProtocolFee) / FEE_PRECISION;
+            uint256 _cbrImprovementAmount = _depositFeeAmount - _protocolFeeAmount;
+
+            // Protocol fee: mint shares to this contract
+            if (_protocolFeeAmount > 0) {
+                uint256 _protocolShares = _totalAsset.toShares(_protocolFeeAmount, false);
+                _totalAsset.amount += _protocolFeeAmount.toUint128();
+                _totalAsset.shares += _protocolShares.toUint128();
+                _mint(address(this), _protocolShares);
+            }
+
+            // CBR improvement: add to totalAsset amount without minting shares (improves CBR for all holders)
+            if (_cbrImprovementAmount > 0) {
+                _totalAsset.amount += _cbrImprovementAmount.toUint128();
+            }
+        }
+
         // Effects: bookkeeping
-        _totalAsset.amount += _amount;
+        _totalAsset.amount += _amountAfterFee.toUint128();
         _totalAsset.shares += _shares;
 
         // Effects: write back to storage
@@ -630,7 +689,10 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         if (_shouldTransfer) {
             assetContract.safeTransferFrom(msg.sender, address(this), _amount);
 
-            if (address(externalAssetVault) != address(0) && _amount > _totalAsset.totalAmount(address(0)) / 1000) {
+            if (
+                address(externalAssetVault) != address(0)
+                    && _amountAfterFee > _totalAsset.totalAmount(address(0)) / 1000
+            ) {
                 // if the external asset vault is over utilized or this pair is over allocated,
                 // return the amount being deposited to the vault
                 externalAssetVault.whitelistUpdate(true);
@@ -639,12 +701,12 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
                     1e18 * externalAssetVault.totalAssetsUtilized() / externalAssetVault.totalAssets() > 1e18 * 8 / 10;
                 bool _pairOverAllocation = _assetsUtilized > externalAssetVault.vaultMaxAllocation(address(this));
                 if (_vaultOverUtilized || _pairOverAllocation) {
-                    uint256 _extAmount = _assetsUtilized > _amount ? _amount : _assetsUtilized;
+                    uint256 _extAmount = _assetsUtilized > _amountAfterFee ? _amountAfterFee : _assetsUtilized;
                     _withdrawToVault(_extAmount);
                 }
             }
         }
-        emit Deposit(msg.sender, _receiver, _amount, _shares);
+        emit Deposit(msg.sender, _receiver, _amountAfterFee, _shares);
     }
 
     function previewDeposit(uint256 _assets) external view returns (uint256 _sharesReceived) {
@@ -669,10 +731,16 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         // Check if this deposit will violate the deposit limit
         if (depositLimit < _totalAsset.totalAmount(address(0)) + _amount) revert ExceedsDepositLimit();
 
-        // Calculate the number of fTokens to mint
-        _sharesReceived = _totalAsset.toShares(_amount, false);
+        // Calculate amount after fee (fee logic is in _deposit)
+        uint256 _amountAfterFee = _amount;
+        if (depositFee > 0) {
+            _amountAfterFee = _amount - ((_amount * depositFee) / FEE_PRECISION);
+        }
 
-        // Execute the deposit effects
+        // Calculate the number of fTokens to mint based on amount after fee
+        _sharesReceived = _totalAsset.toShares(_amountAfterFee, false);
+
+        // Execute the deposit effects (handles fee logic internally)
         _deposit(_totalAsset, _amount.toUint128(), _sharesReceived.toUint128(), _receiver, true);
     }
 
@@ -758,7 +826,7 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
     /// @notice The ```_redeem``` function is an internal implementation which allows a Lender to pull their Asset Tokens out of the Pair
     /// @dev Caller must invoke ```ERC20.approve``` on the Asset Token contract prior to calling function
     /// @param _totalAsset An in-memory VaultAccount struct which holds the total amount of Asset Tokens and the total number of Asset Shares (fTokens)
-    /// @param _amountToReturn The number of Asset Tokens to return
+    /// @param _amountToReturn The number of Asset Tokens to return (before fees)
     /// @param _shares The number of Asset Shares (fTokens) to burn
     /// @param _receiver The address to which the Asset Tokens will be transferred
     /// @param _owner The owner of the Asset Shares (fTokens)
@@ -777,17 +845,39 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
             if (allowed != type(uint256).max) _approve(_owner, msg.sender, allowed - _shares);
         }
 
+        // Handle withdraw fee if configured
+        uint256 _withdrawFeeAmount = 0;
+        uint256 _amountAfterFee = _amountToReturn;
+        if (withdrawFee > 0 && _receiver != address(this) && _owner != address(externalAssetVault)) {
+            _withdrawFeeAmount = (_amountToReturn * withdrawFee) / FEE_PRECISION;
+            _amountAfterFee = _amountToReturn - _withdrawFeeAmount;
+
+            // Calculate protocol portion of fee
+            uint256 _protocolFeeAmount = (_withdrawFeeAmount * depositWithdrawProtocolFee) / FEE_PRECISION;
+            // uint256 _cbrImprovementAmount = _withdrawFeeAmount - _protocolFeeAmount;
+
+            // Protocol fee: mint shares to this contract
+            if (_protocolFeeAmount > 0) {
+                uint256 _protocolShares = _totalAsset.toShares(_protocolFeeAmount, false);
+                _totalAsset.shares += _protocolShares.toUint128();
+                _mint(address(this), _protocolShares);
+            }
+
+            // CBR improvement: keep in totalAsset amount without minting shares (improves CBR for all holders)
+            // Note: amount stays the same but user gets less, so ratio improves
+        }
+
         // Check for sufficient withdraw liquidity (not strictly necessary because balance will underflow)
         uint256 _totAssetsAvailable = _totalAssetAvailable(_totalAsset, totalBorrow, true);
-        if (_totAssetsAvailable < _amountToReturn) {
-            revert InsufficientAssetsInContract(_totAssetsAvailable, _amountToReturn);
+        if (_totAssetsAvailable < _amountAfterFee) {
+            revert InsufficientAssetsInContract(_totAssetsAvailable, _amountAfterFee);
         }
 
         // If we're redeeming back to the vault, don't deposit from the vault
         if (_owner != address(externalAssetVault)) {
             uint256 _localAssetsAvailable = _totalAssetAvailable(_totalAsset, totalBorrow, false);
-            if (_localAssetsAvailable < _amountToReturn) {
-                uint256 _vaultAmt = _amountToReturn - _localAssetsAvailable;
+            if (_localAssetsAvailable < _amountAfterFee) {
+                uint256 _vaultAmt = _amountAfterFee - _localAssetsAvailable;
                 _depositFromVault(_vaultAmt);
 
                 // Rewrite to memory, now it's the latest value!
@@ -805,9 +895,9 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
 
         // Interactions
         if (_receiver != address(this)) {
-            assetContract.safeTransfer(_receiver, _amountToReturn);
+            assetContract.safeTransfer(_receiver, _amountAfterFee);
         }
-        emit Withdraw(msg.sender, _receiver, _owner, _amountToReturn, _shares);
+        emit Withdraw(msg.sender, _receiver, _owner, _amountAfterFee, _shares);
     }
 
     function previewRedeem(uint256 _shares) external view returns (uint256 _assets) {
@@ -839,7 +929,7 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         // Calculate the number of assets to transfer based on the shares to burn
         _amountToReturn = _totalAsset.toAmount(_shares, false);
 
-        // Execute the withdraw effects
+        // Execute the withdraw effects (fee logic is handled internally in _redeem)
         _redeem(_totalAsset, _amountToReturn.toUint128(), _shares.toUint128(), _receiver, _owner, false);
     }
 
@@ -1159,41 +1249,6 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         nonReentrant
         returns (uint256 _collateralForLiquidator)
     {
-        return _liquidate(_sharesToLiquidate, _deadline, _borrower, false);
-    }
-
-    /// @notice The ```liquidateAndWithdraw``` function liquidates an insolvent position and unwinds the collateral before potentially realizing bad debt
-    /// @dev Liquidator must invoke ```ERC20.approve()``` on the Asset Token contract prior to calling this function
-    /// @dev This function is particularly useful for self-lending pairs where collateral is the pair's own supply receipt (ERC4626 autocompounding LP)
-    /// @dev Unlike ```liquidate()```, this function redeems/unwinds the collateral asset before processing potential bad debt writeoffs
-    /// @dev The unwinding process: redeems ERC4626 shares -> unstakes from staking pool -> removes LP liquidity -> returns underlying assets
-    /// @dev Requires that the borrower is insolvent (LTV exceeds maxLTV) and that sufficient time has passed since their last borrow
-    /// @dev This function will revert if: liquidation is paused, withdrawal is paused, deadline has passed, borrower is solvent, or insufficient delay after borrow
-    /// @param _sharesToLiquidate The number of Borrow Shares to be repaid by the liquidator on behalf of the borrower
-    /// @param _deadline The Unix timestamp after which the transaction will revert to prevent stale liquidations
-    /// @param _borrower The address of the insolvent borrower whose position is being liquidated
-    /// @return _collateralForLiquidator The amount of Collateral Token that was unwound and whose underlying assets were transferred to the liquidator
-    function liquidateAndWithdraw(uint128 _sharesToLiquidate, uint256 _deadline, address _borrower)
-        external
-        nonReentrant
-        returns (uint256 _collateralForLiquidator)
-    {
-        return _liquidate(_sharesToLiquidate, _deadline, _borrower, true);
-    }
-
-    /// @notice The ```liquidate``` function allows a third party to repay a borrower's debt if they have become insolvent
-    /// @dev Caller must invoke ```ERC20.approve``` on the Asset Token contract prior to calling ```Liquidate()```
-    /// @dev Not Intended to be called via EOA, Calling Contracts are encouraged to implement appropriate checks
-    ///      on the return value from this function
-    /// @param _sharesToLiquidate The number of Borrow Shares repaid by the liquidator
-    /// @param _deadline The timestamp after which tx will revert
-    /// @param _borrower The account for which the repayment is credited and from whom collateral will be taken
-    /// @param _unwindBeforeDerating Whether to unwind the collateral asset before potentially realizing bad debt on shares
-    /// @return _collateralForLiquidator The amount of Collateral Token transferred to the liquidator
-    function _liquidate(uint128 _sharesToLiquidate, uint256 _deadline, address _borrower, bool _unwindBeforeDerating)
-        internal
-        returns (uint256 _collateralForLiquidator)
-    {
         if (_borrower == address(0)) revert InvalidReceiver();
 
         // Check if liquidate is paused revert if necessary
@@ -1255,15 +1310,6 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
             }
         }
 
-        // if desired unwind collateral we're removing before processing bad debt and send remaining assets to msg.sender
-        if (_unwindBeforeDerating) {
-            if (_borrower == msg.sender) {
-                revert LiquidatorCannotBeBorrower(_borrower);
-            }
-            _removeCollateral(_collateralForLiquidator, address(this), _borrower);
-            _unwindAndSendCollateral(_collateralForLiquidator, msg.sender);
-        }
-
         // Calculated here for use during repayment, grouped with other calcs before effects start
         uint128 _amountLiquidatorToRepay = (_totalBorrow.toAmount(_sharesToLiquidate, true)).toUint128();
 
@@ -1303,9 +1349,7 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         _repayAsset(_totalBorrow, _amountLiquidatorToRepay, _sharesToLiquidate + _sharesToAdjust, msg.sender, _borrower); // liquidator repays shares on behalf of borrower
         // Collateral is removed on behalf of borrower and sent to liquidator
         // NOTE: reverts if _collateralForLiquidator > userCollateralBalance
-        if (!_unwindBeforeDerating) {
-            _removeCollateral(_collateralForLiquidator, msg.sender, _borrower);
-        }
+        _removeCollateral(_collateralForLiquidator, msg.sender, _borrower);
         // Adjust bookkeeping only (decreases collateral held by borrower)
         _removeCollateral(_feesAmount, address(this), _borrower);
         // Adjusts bookkeeping only (increases collateral held by protocol)
@@ -1316,82 +1360,96 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         }
     }
 
-    /// @notice The ```_unwindAndSendCollateral``` function will unwind collateral asset, which for Peapods LVF pods is an
-    /// autocompounding LP ERC4626 asset. This is most significant and important for self lending pods in which the collateral
-    /// is made up of this pair's supply receipt, and this can be used to redeem assets before realizing bad debt on a liquidation.
-    /// @param _amount The number of collateral assets to unwind
-    /// @param _receiver The receiver of the unwound assets
-    /// @return _t0 The 0th asset in the liquidity pair
-    /// @return _t1 The 1st asset in the liquidity pair
-    /// @return _a0 The amount of the 0th asset we're returning
-    /// @return _a1 The amount of the 1st asset we're returning
-    function _unwindAndSendCollateral(uint256 _amount, address _receiver)
-        internal
-        returns (address _t0, address _t1, uint256 _a0, uint256 _a1)
+    /// @notice The ```FlashLoan``` event is emitted when a flash loan is executed
+    /// @param initiator The address that initiated the flash loan
+    /// @param receiver The address that received the flash loan and implements the callback
+    /// @param token The token that was flash loaned
+    /// @param amount The amount of tokens that were flash loaned
+    /// @param fee The fee charged for the flash loan
+    event FlashLoan(
+        address indexed initiator, address indexed receiver, address indexed token, uint256 amount, uint256 fee
+    );
+
+    /// @notice The ```flashLoan``` function provides ERC-3156 compliant flash loans
+    /// @dev This function implements reentrancy protection and ensures proper repayment with fees
+    /// @dev The receiver must implement IERC3156FlashBorrower.onFlashLoan and return the correct hash
+    /// @dev The receiver must approve this contract to spend amount + fee of the asset token
+    /// @param _receiver The address that will receive the flash loan and implement the callback
+    /// @param _token The token address to flash loan (must be the asset token)
+    /// @param _amount The amount of tokens to flash loan
+    /// @param _data Arbitrary data to pass to the receiver's callback
+    /// @return True if the flash loan was successful
+    function flashLoan(IERC3156FlashBorrower _receiver, address _token, uint256 _amount, bytes calldata _data)
+        external
+        nonReentrant
+        returns (bool)
     {
-        // Check if withdraw is paused and revert if necessary
-        if (isWithdrawPaused) revert WithdrawPaused();
+        // Check if flash loans are paused
+        if (isFlashLoanPaused) revert FlashLoanPaused();
 
-        IERC4626(address(collateralContract)).redeem(_amount, address(this), address(this));
-        address _spTkn = IERC4626(address(collateralContract)).asset();
-        IStakingPoolToken(_spTkn).unstake(IERC20(_spTkn).balanceOf(address(this)));
-        address _uniV2Tkn = IStakingPoolToken(_spTkn).stakingToken();
-        _t0 = IUniswapV2Pair(_uniV2Tkn).token0();
-        _t1 = IUniswapV2Pair(_uniV2Tkn).token1();
+        // Only support flash loans for the asset token
+        if (_token != address(assetContract)) revert UnsupportedCurrency();
 
-        address _pod = IStakingPoolToken(_spTkn).INDEX_FUND();
-        uint256 _uniV2Amt = IERC20(_uniV2Tkn).balanceOf(address(this));
-
-        uint256 _t0Before = IERC20(_t0).balanceOf(address(this));
-        uint256 _t1Before = IERC20(_t1).balanceOf(address(this));
-
-        IERC20(_uniV2Tkn).approve(_pod, _uniV2Amt);
-        IDecentralizedIndex(_pod).removeLiquidityV2(_uniV2Amt, 0, 0, block.timestamp);
-
-        _a0 = IERC20(_t0).balanceOf(address(this)) - _t0Before;
-        _a1 = IERC20(_t1).balanceOf(address(this)) - _t1Before;
-
-        // Calculate the number of assets to transfer based on the shares to burn
-        if (_t0 != address(this) && _t1 != address(this)) {
-            revert CollateralRequiresPair();
+        // Validate amount is within available liquidity
+        VaultAccount memory _totalAsset = totalAsset;
+        VaultAccount memory _totalBorrow = totalBorrow;
+        uint256 _availableAssets = _totalAssetAvailable(_totalAsset, _totalBorrow, true);
+        if (_amount > _availableAssets) {
+            revert InsufficientAssetsInContract(_availableAssets, _amount);
         }
-        uint256 _shares = _t0 == address(this) ? _a0 : _a1;
 
-        // Redeem assets to receiver
-        _redeem(
-            totalAsset,
-            totalAsset.toAmount(_shares, false).toUint128(),
-            _shares.toUint128(),
-            _receiver,
-            address(this),
-            true
-        );
+        // If we need to pull from external vault
+        uint256 _localAssets = _totalAssetAvailable(_totalAsset, _totalBorrow, false);
+        if (_amount > _localAssets) {
+            uint256 _externalAmount = _amount - _localAssets;
+            _depositFromVault(_externalAmount);
+        }
 
-        // Send the remaining liquidity pair asset that isn't this supply receipt to the receiver
-        IERC20(_t0 == address(this) ? _t1 : _t0).safeTransfer(_receiver, _t0 == address(this) ? _a1 : _a0);
+        // Calculate the fee
+        uint256 _fee = (_amount * 10) / FEE_PRECISION; // 0.1%
+
+        // Record balance before to ensure proper repayment
+        uint256 _balanceBefore = assetContract.balanceOf(address(this));
+
+        // Interactions: Transfer tokens to receiver and call receiver's callback
+        assetContract.safeTransfer(address(_receiver), _amount);
+
+        bytes32 _callbackReturn = _receiver.onFlashLoan(msg.sender, _token, _amount, _fee, _data);
+
+        // Verify the callback returned the correct hash
+        if (_callbackReturn != keccak256("ERC3156FlashBorrower.onFlashLoan")) {
+            revert FlashLoanCallbackFailed();
+        }
+
+        // Verify we received at least the amount + fee
+        uint256 _balanceAfter = assetContract.balanceOf(address(this));
+        if (_balanceAfter < _balanceBefore + _fee) {
+            revert InsufficientFlashLoanRepayment();
+        }
+
+        // Handle fee distribution - add fee to total assets which increases CBR
+        if (_fee > 0) {
+            _totalAsset.amount += _fee.toUint128();
+            totalAsset = _totalAsset;
+        }
+
+        // If external vault exists, check if we should return excess liquidity
+        if (address(externalAssetVault) != address(0) && _fee > 0) {
+            externalAssetVault.whitelistUpdate(true);
+            uint256 _assetsUtilized = externalAssetVault.vaultUtilization(address(this));
+            bool _vaultOverUtilized =
+                1e18 * externalAssetVault.totalAssetsUtilized() / externalAssetVault.totalAssets() > 1e18 * 8 / 10;
+            bool _pairOverAllocation = _assetsUtilized > externalAssetVault.vaultMaxAllocation(address(this));
+            if (_vaultOverUtilized || _pairOverAllocation) {
+                uint256 _extAmount = _assetsUtilized > _fee ? _fee : _assetsUtilized;
+                if (_extAmount > 0) {
+                    _withdrawToVault(_extAmount);
+                }
+            }
+        }
+
+        emit FlashLoan(msg.sender, address(_receiver), _token, _amount, _fee);
+
+        return true;
     }
-}
-
-interface IERC4626 {
-    function asset() external view returns (address);
-
-    function redeem(uint256 _shares, address _receiver, address _owner) external returns (uint256 _amountToReturn);
-}
-
-interface IDecentralizedIndex {
-    function removeLiquidityV2(uint256 lpTokens, uint256 minTokens, uint256 minDAI, uint256 deadline) external;
-}
-
-interface IStakingPoolToken {
-    function INDEX_FUND() external view returns (address);
-
-    function stakingToken() external view returns (address);
-
-    function unstake(uint256 amount) external;
-}
-
-interface IUniswapV2Pair {
-    function token0() external view returns (address);
-
-    function token1() external view returns (address);
 }

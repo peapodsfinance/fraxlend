@@ -52,8 +52,10 @@ abstract contract FraxlendPairAccessControl is Timelock2Step, Ownable2Step, Frax
 
     bool public isInterestPaused;
 
+    bool public isFlashLoanPaused;
+
     /// @param _immutables abi.encode(address _circuitBreakerAddress, address _comptrollerAddress, address _timelockAddress)
-    constructor(bytes memory _immutables) Timelock2Step() Ownable2Step() {
+    constructor(bytes memory _immutables) Timelock2Step() Ownable(msg.sender) {
         // Handle Immutables Configuration
         (address _circuitBreakerAddress, address _comptrollerAddress, address _timelockAddress) =
             abi.decode(_immutables, (address, address, address));
@@ -136,6 +138,15 @@ abstract contract FraxlendPairAccessControl is Timelock2Step, Ownable2Step, Frax
     function _pauseInterest(bool _isPaused) internal {
         isInterestPaused = _isPaused;
         emit PauseInterest(_isPaused);
+    }
+
+    /// @notice The ```PauseFlashLoan``` event is emitted when flash loans are paused or unpaused
+    /// @param isPaused The new paused state
+    event PauseFlashLoan(bool isPaused);
+
+    function _pauseFlashLoan(bool _isPaused) internal {
+        isFlashLoanPaused = _isPaused;
+        emit PauseFlashLoan(_isPaused);
     }
 
     /// @notice The ```SetExternalAssetVault``` event is emitted when the external vault account is changed

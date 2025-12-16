@@ -25,13 +25,13 @@ pragma solidity ^0.8.19;
 
 // ====================================================================
 
-import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
+import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 
 contract FraxlendWhitelist is Ownable2Step {
     /// @notice Fraxlend Deployer Whitelist mapping.
     mapping(address => bool) public fraxlendDeployerWhitelist;
 
-    constructor() Ownable2Step() {}
+    constructor() Ownable(msg.sender) {}
 
     /// @notice The ```SetFraxlendDeployerWhitelist``` event fires whenever a status is set for a given address.
     /// @param _address address being set.
