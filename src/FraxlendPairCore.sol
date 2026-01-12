@@ -74,6 +74,10 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
     /// @dev The remainder improves the vault's collateral backing ratio (CBR) for all share holders. Can be changed by timelock.
     uint256 public depositWithdrawProtocolFee;
 
+    /// @notice Minimum treasury fee charged on deposits/withdrawals even when depositFee/withdrawFee is 0
+    /// @dev 1e5 precision, default 10 = 0.01%
+    uint256 public constant MIN_TREASURY_FEE = 10;
+
     // LTV Settings
     /// @notice The maximum LTV allowed for this pair before insolvency, and optional max borrow
     /// @dev 1e5 precision
@@ -108,6 +112,13 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
     // until liquidation can happen after borrowing to prevent attack/exploitation
     mapping(address => uint256) _lastBorrow;
     uint256 public liquidateDelayAfterBorrow = 2;
+
+    // Peapods Additions: Strategy whitelist for borrowing (bypasses overborrow delay)
+    /// @notice Mapping of whitelisted strategy addresses that can bypass same-block overborrow protection
+    mapping(address => bool) public whitelistedBorrowers;
+
+    /// @notice Mapping of addresses authorized to burn shares for CBR improvement (e.g., vlPEAS)
+    mapping(address => bool) public cbrBurnWhitelist;
 
     // ERC20 Metadata
     string internal nameOfContract;
@@ -311,14 +322,18 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
             );
         }
 
-        uint256 _borrowerAmount = totalBorrow.toAmount(userBorrowShares[_borrower], true);
-        uint256 _collateralAmount = userCollateralBalance[_borrower];
-        uint256 _ltv = (((_borrowerAmount * _exchangeRateInfo.highExchangeRate) / EXCHANGE_PRECISION) * LTV_PRECISION)
-            / _collateralAmount;
-        // if borrow amount > 51% LTV make sure user has waited required delay first
-        if (_ltv > LTV_PRECISION * 51 / 100) {
-            if (block.number < _lastAddCollateral[_borrower] + overBorrowDelayAfterAddCollateral) {
-                revert MustWaitToOverBorrow(_lastAddCollateral[_borrower], overBorrowDelayAfterAddCollateral);
+        // Skip same-block overborrow check for whitelisted borrowers (e.g., strategy contracts)
+        if (!whitelistedBorrowers[_borrower]) {
+            uint256 _borrowerAmount = totalBorrow.toAmount(userBorrowShares[_borrower], true);
+            uint256 _collateralAmount = userCollateralBalance[_borrower];
+            uint256 _ltv =
+                (((_borrowerAmount * _exchangeRateInfo.highExchangeRate) / EXCHANGE_PRECISION) * LTV_PRECISION)
+                    / _collateralAmount;
+            // if borrow amount > 51% LTV make sure user has waited required delay first
+            if (_ltv > LTV_PRECISION * 51 / 100) {
+                if (block.number < _lastAddCollateral[_borrower] + overBorrowDelayAfterAddCollateral) {
+                    revert MustWaitToOverBorrow(_lastAddCollateral[_borrower], overBorrowDelayAfterAddCollateral);
+                }
             }
         }
     }
@@ -652,16 +667,31 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         address _receiver,
         bool _shouldTransfer
     ) internal {
-        // Handle deposit fee if configured
+        // Handle deposit fee if configured OR apply minimum treasury fee
         uint256 _depositFeeAmount = 0;
         uint256 _amountAfterFee = _amount;
-        if (depositFee > 0 && _shouldTransfer) {
-            _depositFeeAmount = (_amount * depositFee) / FEE_PRECISION;
+
+        // Determine effective fee: use depositFee if set, otherwise use MIN_TREASURY_FEE
+        uint256 _effectiveFee = depositFee > 0 ? depositFee : MIN_TREASURY_FEE;
+
+        if (_shouldTransfer) {
+            _depositFeeAmount = (_amount * _effectiveFee) / FEE_PRECISION;
             _amountAfterFee = _amount - _depositFeeAmount;
 
-            // Calculate protocol portion of fee
-            uint256 _protocolFeeAmount = (_depositFeeAmount * depositWithdrawProtocolFee) / FEE_PRECISION;
-            uint256 _cbrImprovementAmount = _depositFeeAmount - _protocolFeeAmount;
+            // If using MIN_TREASURY_FEE (depositFee == 0), 100% goes to protocol treasury
+            // Otherwise, use the configured depositWithdrawProtocolFee split
+            uint256 _protocolFeeAmount;
+            uint256 _cbrImprovementAmount;
+
+            if (depositFee == 0) {
+                // Minimum treasury fee: 100% to protocol
+                _protocolFeeAmount = _depositFeeAmount;
+                _cbrImprovementAmount = 0;
+            } else {
+                // Normal fee split
+                _protocolFeeAmount = (_depositFeeAmount * depositWithdrawProtocolFee) / FEE_PRECISION;
+                _cbrImprovementAmount = _depositFeeAmount - _protocolFeeAmount;
+            }
 
             // Protocol fee: mint shares to this contract
             if (_protocolFeeAmount > 0) {
@@ -731,11 +761,9 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         // Check if this deposit will violate the deposit limit
         if (depositLimit < _totalAsset.totalAmount(address(0)) + _amount) revert ExceedsDepositLimit();
 
-        // Calculate amount after fee (fee logic is in _deposit)
-        uint256 _amountAfterFee = _amount;
-        if (depositFee > 0) {
-            _amountAfterFee = _amount - ((_amount * depositFee) / FEE_PRECISION);
-        }
+        // Calculate amount after fee (always applies: either depositFee or MIN_TREASURY_FEE)
+        uint256 _effectiveFee = depositFee > 0 ? depositFee : MIN_TREASURY_FEE;
+        uint256 _amountAfterFee = _amount - ((_amount * _effectiveFee) / FEE_PRECISION);
 
         // Calculate the number of fTokens to mint based on amount after fee
         _sharesReceived = _totalAsset.toShares(_amountAfterFee, false);
@@ -845,16 +873,28 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
             if (allowed != type(uint256).max) _approve(_owner, msg.sender, allowed - _shares);
         }
 
-        // Handle withdraw fee if configured
+        // Handle withdraw fee if configured OR apply minimum treasury fee
         uint256 _withdrawFeeAmount = 0;
         uint256 _amountAfterFee = _amountToReturn;
-        if (withdrawFee > 0 && _receiver != address(this) && _owner != address(externalAssetVault)) {
-            _withdrawFeeAmount = (_amountToReturn * withdrawFee) / FEE_PRECISION;
+
+        // Only apply fees for external withdrawals (not internal operations)
+        if (_receiver != address(this) && _owner != address(externalAssetVault)) {
+            // Determine effective fee: use withdrawFee if set, otherwise use MIN_TREASURY_FEE
+            uint256 _effectiveFee = withdrawFee > 0 ? withdrawFee : MIN_TREASURY_FEE;
+            _withdrawFeeAmount = (_amountToReturn * _effectiveFee) / FEE_PRECISION;
             _amountAfterFee = _amountToReturn - _withdrawFeeAmount;
 
-            // Calculate protocol portion of fee
-            uint256 _protocolFeeAmount = (_withdrawFeeAmount * depositWithdrawProtocolFee) / FEE_PRECISION;
-            // uint256 _cbrImprovementAmount = _withdrawFeeAmount - _protocolFeeAmount;
+            // If using MIN_TREASURY_FEE (withdrawFee == 0), 100% goes to protocol treasury
+            // Otherwise, use the configured depositWithdrawProtocolFee split
+            uint256 _protocolFeeAmount;
+
+            if (withdrawFee == 0) {
+                // Minimum treasury fee: 100% to protocol
+                _protocolFeeAmount = _withdrawFeeAmount;
+            } else {
+                // Normal fee split
+                _protocolFeeAmount = (_withdrawFeeAmount * depositWithdrawProtocolFee) / FEE_PRECISION;
+            }
 
             // Protocol fee: mint shares to this contract
             if (_protocolFeeAmount > 0) {
@@ -967,6 +1007,57 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
 
         // Execute the withdraw effects
         _redeem(_totalAsset, _amount.toUint128(), _sharesToBurn.toUint128(), _receiver, _owner, false);
+    }
+
+    // ============================================================================================
+    // Functions: CBR Burn (Peapods Addition)
+    // ============================================================================================
+
+    /// @notice The ```CBRBurn``` event is emitted when shares are burned to improve CBR
+    /// @param burner The address that burned the shares
+    /// @param sharesBurned The number of shares burned
+    /// @param assetsValue The asset value of the burned shares (stays in pool to improve CBR)
+    event CBRBurn(address indexed burner, uint256 sharesBurned, uint256 assetsValue);
+
+    /// @notice The ```SetCBRBurnWhitelist``` event is emitted when an address is added/removed from CBR burn whitelist
+    /// @param account The address being whitelisted/removed
+    /// @param isWhitelisted Whether the address is now whitelisted
+    event SetCBRBurnWhitelist(address indexed account, bool isWhitelisted);
+
+    /// @notice The ```SetWhitelistedBorrower``` event is emitted when an address is added/removed from borrower whitelist
+    /// @param account The address being whitelisted/removed
+    /// @param isWhitelisted Whether the address is now whitelisted
+    event SetWhitelistedBorrower(address indexed account, bool isWhitelisted);
+
+    /// @notice Burns shares owned by msg.sender to improve CBR for all remaining holders
+    /// @dev Only callable by whitelisted addresses (e.g., vlPEAS). Shares are burned but assets stay in pool.
+    /// @param _shares The number of shares to burn
+    /// @return _assetsValue The asset value of the burned shares
+    function burnForCBR(uint256 _shares) external nonReentrant returns (uint256 _assetsValue) {
+        // Only whitelisted addresses can burn for CBR
+        if (!cbrBurnWhitelist[msg.sender]) revert OnlyWhitelistedCBRBurner();
+
+        // Accrue interest first
+        _addInterest();
+
+        // Pull from storage
+        VaultAccount memory _totalAsset = totalAsset;
+
+        // Calculate the asset value of shares being burned
+        _assetsValue = _totalAsset.toAmount(_shares, false);
+
+        // Check that caller has sufficient shares
+        if (balanceOf(msg.sender) < _shares) revert InsufficientShares();
+
+        // Effects: burn shares but keep assets in pool (improves CBR)
+        _burn(msg.sender, _shares);
+        _totalAsset.shares -= _shares.toUint128();
+        // Note: _totalAsset.amount stays the same, increasing the value per remaining share
+
+        // Write back to storage
+        totalAsset = _totalAsset;
+
+        emit CBRBurn(msg.sender, _shares, _assetsValue);
     }
 
     // ============================================================================================
@@ -1332,40 +1423,30 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         // Calculated here for use during repayment, grouped with other calcs before effects start
         uint128 _amountLiquidatorToRepay = (_totalBorrow.toAmount(_sharesToLiquidate, true)).toUint128();
 
-        // Determine if and how much debt to adjust
-        uint128 _sharesToAdjust = 0;
+        // Peapods Modification: No bad debt socialization
+        // In market-based liquidation, we do NOT write off bad debt.
+        // The debt remains on the borrower's account until repaid or further liquidation.
+        // This prevents socializing losses to other lenders.
         {
-            uint128 _amountToAdjust = 0;
-            if (_leftoverCollateral <= 0) {
-                // Determine if we need to adjust any shares
-                _sharesToAdjust = userBorrowShares[_borrower].toUint128() - _sharesToLiquidate;
-                if (_sharesToAdjust > 0) {
-                    // Write off bad debt
-                    _amountToAdjust = (_totalBorrow.toAmount(_sharesToAdjust, false)).toUint128();
-
-                    // Note: Ensure this memory struct will be passed to _repayAsset for write to state
-                    _totalBorrow.amount -= _amountToAdjust;
-
-                    // Effects: write to state
-                    totalAsset.amount -= _amountToAdjust;
-                }
-            } else if (_leftoverCollateral < minCollateralRequiredOnDirtyLiquidation.toInt256()) {
+            // For dirty liquidations, enforce minimum collateral requirement
+            if (_leftoverCollateral > 0 && _leftoverCollateral < minCollateralRequiredOnDirtyLiquidation.toInt256()) {
                 revert BadDirtyLiquidation();
             }
+
             emit Liquidate(
                 _borrower,
                 _collateralForLiquidator,
                 _sharesToLiquidate,
                 _amountLiquidatorToRepay,
                 _feesAmount,
-                _sharesToAdjust,
-                _amountToAdjust
+                0, // _sharesToAdjust - always 0 now (no bad debt writeoff)
+                0 // _amountToAdjust - always 0 now (no bad debt writeoff)
             );
         }
 
         // Effects & Interactions
         // NOTE: reverts if _shares > userBorrowShares
-        _repayAsset(_totalBorrow, _amountLiquidatorToRepay, _sharesToLiquidate + _sharesToAdjust, msg.sender, _borrower); // liquidator repays shares on behalf of borrower
+        _repayAsset(_totalBorrow, _amountLiquidatorToRepay, _sharesToLiquidate, msg.sender, _borrower); // liquidator repays shares on behalf of borrower
         // Collateral is removed on behalf of borrower and sent to liquidator
         // NOTE: reverts if _collateralForLiquidator > userCollateralBalance
         _removeCollateral(_collateralForLiquidator, msg.sender, _borrower);

@@ -70,4 +70,9 @@ abstract contract FraxlendPairConstants {
     error FlashLoanFailed();
     error FlashLoanCallbackFailed();
     error InsufficientFlashLoanRepayment();
+
+    // Peapods additions
+    error OnlyWhitelistedCBRBurner();
+    error OnlyWhitelistedBorrower();
+    error InsufficientShares();
 }

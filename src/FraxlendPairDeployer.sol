@@ -296,9 +296,11 @@ contract FraxlendPairDeployer is Ownable {
 
         IFraxlendPairRegistry(fraxlendPairRegistryAddress).addPair(_pairAddress);
 
-        if (amountToSeed == 0) revert MustSeedPair();
-        IERC20(_asset).safeApprove(_pairAddress, amountToSeed);
-        IFraxlendPair(_pairAddress).deposit(amountToSeed, address(this));
+        // Seeding is optional for testnet deployments
+        if (amountToSeed > 0) {
+            IERC20(_asset).safeApprove(_pairAddress, amountToSeed);
+            IFraxlendPair(_pairAddress).deposit(amountToSeed, address(this));
+        }
 
         emit LogDeploy(_pairAddress, _asset, _collateral, _name, _configData, _immutables, _customConfigData);
     }

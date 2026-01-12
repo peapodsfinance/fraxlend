@@ -515,4 +515,27 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
         overBorrowDelayAfterAddCollateral = _overBorrowDelayAfterAddCollateral;
         liquidateDelayAfterBorrow = _liquidateDelayAfterBorrow;
     }
+
+    // ============================================================================================
+    // Functions: Peapods Whitelist Management
+    // ============================================================================================
+
+    /// @notice The ```setCBRBurnWhitelist``` function adds/removes an address from CBR burn whitelist
+    /// @param _account The address to whitelist/remove
+    /// @param _isWhitelisted Whether to whitelist or remove
+    function setCBRBurnWhitelist(address _account, bool _isWhitelisted) external {
+        _requireTimelockOrOwner();
+        cbrBurnWhitelist[_account] = _isWhitelisted;
+        emit SetCBRBurnWhitelist(_account, _isWhitelisted);
+    }
+
+    /// @notice The ```setWhitelistedBorrower``` function adds/removes an address from borrower whitelist
+    /// @dev Whitelisted borrowers can bypass same-block overborrow protection
+    /// @param _account The address to whitelist/remove
+    /// @param _isWhitelisted Whether to whitelist or remove
+    function setWhitelistedBorrower(address _account, bool _isWhitelisted) external {
+        _requireTimelockOrOwner();
+        whitelistedBorrowers[_account] = _isWhitelisted;
+        emit SetWhitelistedBorrower(_account, _isWhitelisted);
+    }
 }
