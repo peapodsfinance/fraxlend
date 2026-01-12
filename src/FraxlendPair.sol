@@ -36,7 +36,6 @@ import {Timelock2Step} from "./Timelock2Step.sol";
 import {SafeERC20} from "./libraries/SafeERC20.sol";
 import {VaultAccount, VaultAccountingLibrary} from "./libraries/VaultAccount.sol";
 import {IRateCalculatorV2} from "./interfaces/IRateCalculatorV2.sol";
-import {ISwapper} from "./interfaces/ISwapper.sol";
 
 /// @title FraxlendPair
 /// @author Drake Evans (Frax Finance) https://github.com/drakeevans
@@ -80,106 +79,6 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
 
     function asset() external view returns (address) {
         return address(assetContract);
-    }
-
-    function getConstants()
-        external
-        pure
-        returns (
-            uint256 _LTV_PRECISION,
-            uint256 _LIQ_PRECISION,
-            uint256 _UTIL_PREC,
-            uint256 _FEE_PRECISION,
-            uint256 _EXCHANGE_PRECISION,
-            uint256 _DEVIATION_PRECISION,
-            uint256 _RATE_PRECISION,
-            uint256 _MAX_PROTOCOL_FEE
-        )
-    {
-        _LTV_PRECISION = LTV_PRECISION;
-        _LIQ_PRECISION = LIQ_PRECISION;
-        _UTIL_PREC = UTIL_PREC;
-        _FEE_PRECISION = FEE_PRECISION;
-        _EXCHANGE_PRECISION = EXCHANGE_PRECISION;
-        _DEVIATION_PRECISION = DEVIATION_PRECISION;
-        _RATE_PRECISION = RATE_PRECISION;
-        _MAX_PROTOCOL_FEE = MAX_PROTOCOL_FEE;
-    }
-
-    /// @notice The ```getUserSnapshot``` function gets user level accounting data
-    /// @param _address The user address
-    /// @return _userAssetShares The user fToken balance
-    /// @return _userBorrowShares The user borrow shares
-    /// @return _userCollateralBalance The user collateral balance
-    function getUserSnapshot(address _address)
-        external
-        view
-        returns (uint256 _userAssetShares, uint256 _userBorrowShares, uint256 _userCollateralBalance)
-    {
-        _userAssetShares = balanceOf(_address);
-        _userBorrowShares = userBorrowShares[_address];
-        _userCollateralBalance = userCollateralBalance[_address];
-    }
-
-    /// @notice The ```getPairAccounting``` function gets all pair level accounting numbers
-    /// @return _totalAssetAmount Total assets deposited and interest accrued, total claims
-    /// @return _totalAssetShares Total fTokens
-    /// @return _totalBorrowAmount Total borrows
-    /// @return _totalBorrowShares Total borrow shares
-    /// @return _totalCollateral Total collateral
-    function getPairAccounting()
-        external
-        view
-        returns (
-            uint128 _totalAssetAmount,
-            uint128 _totalAssetShares,
-            uint128 _totalBorrowAmount,
-            uint128 _totalBorrowShares,
-            uint256 _totalCollateral
-        )
-    {
-        (,,,, VaultAccount memory _totalAsset, VaultAccount memory _totalBorrow) = previewAddInterest();
-        _totalAssetAmount = _totalAsset.totalAmount(address(address(0))).toUint128();
-        _totalAssetShares = _totalAsset.shares;
-        _totalBorrowAmount = _totalBorrow.amount;
-        _totalBorrowShares = _totalBorrow.shares;
-        _totalCollateral = totalCollateral;
-    }
-
-    /// @notice The ```toBorrowShares``` function converts a given amount of borrow debt into the number of shares
-    /// @param _amount Amount of borrow
-    /// @param _roundUp Whether to roundup during division
-    /// @param _previewInterest Whether to simulate interest accrual
-    /// @return _shares The number of shares
-    function toBorrowShares(uint256 _amount, bool _roundUp, bool _previewInterest)
-        external
-        view
-        returns (uint256 _shares)
-    {
-        if (_previewInterest) {
-            (,,,,, VaultAccount memory _totalBorrow) = previewAddInterest();
-            _shares = _totalBorrow.toShares(_amount, _roundUp);
-        } else {
-            _shares = totalBorrow.toShares(_amount, _roundUp);
-        }
-    }
-
-    /// @notice The ```toBorrowAmount``` function converts a given amount of borrow debt into the number of shares
-    /// @param _shares Shares of borrow
-    /// @param _roundUp Whether to roundup during division
-    /// @param _previewInterest Whether to simulate interest accrual
-    /// @return _amount The amount of asset
-    function toBorrowAmount(uint256 _shares, bool _roundUp, bool _previewInterest)
-        external
-        view
-        returns (uint256 _amount)
-    {
-        if (_previewInterest) {
-            (,,,,, VaultAccount memory _totalBorrow) = previewAddInterest();
-            _amount = _totalBorrow.toAmount(_shares, _roundUp);
-        } else {
-            _amount = totalBorrow.toAmount(_shares, _roundUp);
-        }
     }
 
     /// @notice The ```toAssetAmount``` function converts a given number of shares to an asset amount
@@ -226,28 +125,19 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
         _shares = toAssetShares(_assets, false, true);
     }
 
-    function pricePerShare() external view returns (uint256 _amount) {
-        _amount = toAssetAmount(1e18, false, true);
-    }
-
     function totalAssets() external view returns (uint256) {
         (,,,, VaultAccount memory _totalAsset,) = previewAddInterest();
         return _totalAsset.totalAmount(address(externalAssetVault));
     }
 
     function maxDeposit(address) public view returns (uint256 _maxAssets) {
-        (,,,, VaultAccount memory _totalAsset,) = previewAddInterest();
-        _maxAssets = _totalAsset.totalAmount(address(0)) >= depositLimit
-            ? 0
-            : depositLimit - _totalAsset.totalAmount(address(0));
+        if (isDepositPaused) return 0;
+        _maxAssets = type(uint256).max;
     }
 
     function maxMint(address) external view returns (uint256 _maxShares) {
-        (,,,, VaultAccount memory _totalAsset,) = previewAddInterest();
-        uint256 _maxDeposit = _totalAsset.totalAmount(address(0)) >= depositLimit
-            ? 0
-            : depositLimit - _totalAsset.totalAmount(address(0));
-        _maxShares = _totalAsset.toShares(_maxDeposit, false);
+        if (isDepositPaused) return 0;
+        _maxShares = type(uint256).max;
     }
 
     function maxWithdraw(address _owner) external view returns (uint256 _maxAssets) {
@@ -430,12 +320,11 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
     /// @notice The ```pause``` function is called to pause all contract functionality
     function pause() external {
         _requireProtocolOrOwner();
-        _setBorrowLimit(0);
-        _setDepositLimit(0);
+        _pauseBorrow(true);
+        _pauseDeposit(true);
         _pauseRepay(true);
         _pauseWithdraw(true);
         _pauseLiquidate(true);
-        _pauseFlashLoan(true);
         _addInterest();
         _pauseInterest(true);
     }
@@ -443,12 +332,11 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
     /// @notice The ```unpause``` function is called to unpause all contract functionality
     function unpause() external {
         _requireTimelockOrOwner();
-        _setBorrowLimit(type(uint256).max);
-        _setDepositLimit(type(uint256).max);
+        _pauseBorrow(false);
+        _pauseDeposit(false);
         _pauseRepay(false);
         _pauseWithdraw(false);
         _pauseLiquidate(false);
-        _pauseFlashLoan(false);
         _addInterest();
         _pauseInterest(false);
         currentRateInfo.lastTimestamp = uint64(block.timestamp);
@@ -463,32 +351,6 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
         if (_newURChange > UTIL_PREC) revert MinURChangeMax();
         minURChangeForExternalAddInterest = _newURChange;
         emit UpdatedMinURChange(_newURChange);
-    }
-
-    /// @notice The ```pauseBorrow``` function sets borrow limit to 0
-    function pauseBorrow() external {
-        _requireProtocolOrOwner();
-        _setBorrowLimit(0);
-    }
-
-    /// @notice The ```setBorrowLimit``` function sets the borrow limit
-    /// @param _limit The new borrow limit
-    function setBorrowLimit(uint256 _limit) external {
-        _requireTimelockOrOwner();
-        _setBorrowLimit(_limit);
-    }
-
-    /// @notice The ```pauseDeposit``` function pauses deposit functionality
-    function pauseDeposit() external {
-        _requireProtocolOrOwner();
-        _setDepositLimit(0);
-    }
-
-    /// @notice The ```setDepositLimit``` function sets the deposit limit
-    /// @param _limit The new deposit limit
-    function setDepositLimit(uint256 _limit) external {
-        _requireTimelockOrOwner();
-        _setDepositLimit(_limit);
     }
 
     event SetOverBorrowAndLiquidateDelays(

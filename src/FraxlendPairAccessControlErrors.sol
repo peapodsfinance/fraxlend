@@ -27,10 +27,10 @@ pragma solidity ^0.8.19;
 abstract contract FraxlendPairAccessControlErrors {
     error OnlyProtocolOrOwner();
     error OnlyTimelockOrOwner();
-    error ExceedsBorrowLimit();
     error AccessControlRevoked();
+    error BorrowPaused();
+    error DepositPaused();
     error RepayPaused();
-    error ExceedsDepositLimit();
     error WithdrawPaused();
     error LiquidatePaused();
     error InterestPaused();

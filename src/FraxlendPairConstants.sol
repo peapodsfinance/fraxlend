@@ -65,7 +65,6 @@ abstract contract FraxlendPairConstants {
     error MustWaitToLiquidate(uint256 _lastBorrow, uint256 _blockDelay);
     error CollateralRequiresPair();
     error LiquidatorCannotBeBorrower(address _borrower);
-    error FlashLoanPaused();
     error UnsupportedCurrency();
     error FlashLoanFailed();
     error FlashLoanCallbackFailed();

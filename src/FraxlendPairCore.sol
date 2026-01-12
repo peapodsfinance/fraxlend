@@ -47,12 +47,6 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
     using SafeERC20 for IERC20;
     using SafeCast for uint256;
 
-    function version() external pure returns (uint256 _major, uint256 _minor, uint256 _patch) {
-        _major = 3;
-        _minor = 0;
-        _patch = 0;
-    }
-
     // ============================================================================================
     // Settings set by constructor()
     // ============================================================================================
@@ -755,11 +749,11 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         // Accrue interest if necessary
         _addInterest();
 
+        // Check if deposit is paused
+        if (isDepositPaused) revert DepositPaused();
+
         // Pull from storage to save gas
         VaultAccount memory _totalAsset = totalAsset;
-
-        // Check if this deposit will violate the deposit limit
-        if (depositLimit < _totalAsset.totalAmount(address(0)) + _amount) revert ExceedsDepositLimit();
 
         // Calculate amount after fee (always applies: either depositFee or MIN_TREASURY_FEE)
         uint256 _effectiveFee = depositFee > 0 ? depositFee : MIN_TREASURY_FEE;
@@ -831,11 +825,11 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         // Pull from storage to save gas
         VaultAccount memory _totalAsset = totalAsset;
 
+        // Check if deposit is paused
+        if (isDepositPaused) revert DepositPaused();
+
         // Calculate the number of assets to transfer based on the shares to mint
         _amount = _totalAsset.toAmount(_shares, true);
-
-        // Check if this deposit will violate the deposit limit
-        if (depositLimit < _totalAsset.totalAmount(address(0)) + _amount) revert ExceedsDepositLimit();
 
         // Execute the deposit effects
         _deposit(_totalAsset, _amount.toUint128(), _shares.toUint128(), _receiver, true);
@@ -1127,11 +1121,11 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
     {
         if (_receiver == address(0)) revert InvalidReceiver();
 
+        // Check if borrow is paused
+        if (isBorrowPaused) revert BorrowPaused();
+
         // Accrue interest if necessary
         _addInterest();
-
-        // Check if borrow will violate the borrow limit and revert if necessary
-        if (borrowLimit < totalBorrow.amount + _borrowAmount) revert ExceedsBorrowLimit();
 
         // Update _exchangeRate and check if borrow is allowed based on deviation
         (bool _isBorrowAllowed,,) = _updateExchangeRate();
@@ -1460,96 +1454,48 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         }
     }
 
-    /// @notice The ```FlashLoan``` event is emitted when a flash loan is executed
-    /// @param initiator The address that initiated the flash loan
-    /// @param receiver The address that received the flash loan and implements the callback
-    /// @param token The token that was flash loaned
-    /// @param amount The amount of tokens that were flash loaned
-    /// @param fee The fee charged for the flash loan
-    event FlashLoan(
-        address indexed initiator, address indexed receiver, address indexed token, uint256 amount, uint256 fee
-    );
+    // /// @notice The ```FlashLoan``` event is emitted when a flash loan is executed
+    // event FlashLoan(address indexed receiver, uint256 amount, uint256 fee);
 
-    /// @notice The ```flashLoan``` function provides ERC-3156 compliant flash loans
-    /// @dev This function implements reentrancy protection and ensures proper repayment with fees
-    /// @dev The receiver must implement IERC3156FlashBorrower.onFlashLoan and return the correct hash
-    /// @dev The receiver must approve this contract to spend amount + fee of the asset token
-    /// @param _receiver The address that will receive the flash loan and implement the callback
-    /// @param _token The token address to flash loan (must be the asset token)
-    /// @param _amount The amount of tokens to flash loan
-    /// @param _data Arbitrary data to pass to the receiver's callback
-    /// @return True if the flash loan was successful
-    function flashLoan(IERC3156FlashBorrower _receiver, address _token, uint256 _amount, bytes calldata _data)
-        external
-        nonReentrant
-        returns (bool)
-    {
-        // Check if flash loans are paused
-        if (isFlashLoanPaused) revert FlashLoanPaused();
+    // /// @notice The ```flashLoan``` function provides ERC-3156 compliant flash loans for local assets only
+    // /// @param _receiver The address that will receive the flash loan and implement the callback
+    // /// @param _token The token address to flash loan (must be the asset token)
+    // /// @param _amount The amount of tokens to flash loan
+    // /// @param _data Arbitrary data to pass to the receiver's callback
+    // /// @return True if the flash loan was successful
+    // function flashLoan(IERC3156FlashBorrower _receiver, address _token, uint256 _amount, bytes calldata _data)
+    //     external
+    //     nonReentrant
+    //     returns (bool)
+    // {
+    //     if (_token != address(assetContract)) revert UnsupportedCurrency();
 
-        // Only support flash loans for the asset token
-        if (_token != address(assetContract)) revert UnsupportedCurrency();
+    //     // Only check local assets (no external vault)
+    //     uint256 _available = _totalAssetAvailable(totalAsset, totalBorrow, false);
+    //     if (_amount > _available) revert InsufficientAssetsInContract(_available, _amount);
 
-        // Validate amount is within available liquidity
-        VaultAccount memory _totalAsset = totalAsset;
-        VaultAccount memory _totalBorrow = totalBorrow;
-        uint256 _availableAssets = _totalAssetAvailable(_totalAsset, _totalBorrow, true);
-        if (_amount > _availableAssets) {
-            revert InsufficientAssetsInContract(_availableAssets, _amount);
-        }
+    //     uint256 _fee = (_amount * 10) / FEE_PRECISION; // 0.01%
+    //     uint256 _balanceBefore = assetContract.balanceOf(address(this));
 
-        // If we need to pull from external vault
-        uint256 _localAssets = _totalAssetAvailable(_totalAsset, _totalBorrow, false);
-        if (_amount > _localAssets) {
-            uint256 _externalAmount = _amount - _localAssets;
-            _depositFromVault(_externalAmount);
-        }
+    //     assetContract.safeTransfer(address(_receiver), _amount);
 
-        // Calculate the fee
-        uint256 _fee = (_amount * 10) / FEE_PRECISION; // 0.1%
+    //     if (
+    //         _receiver.onFlashLoan(msg.sender, _token, _amount, _fee, _data)
+    //             != keccak256("ERC3156FlashBorrower.onFlashLoan")
+    //     ) {
+    //         revert FlashLoanCallbackFailed();
+    //     }
 
-        // Record balance before to ensure proper repayment
-        uint256 _balanceBefore = assetContract.balanceOf(address(this));
+    //     if (assetContract.balanceOf(address(this)) < _balanceBefore + _fee) {
+    //         revert InsufficientFlashLoanRepayment();
+    //     }
 
-        // Interactions: Transfer tokens to receiver and call receiver's callback
-        assetContract.safeTransfer(address(_receiver), _amount);
+    //     // Add fee to total assets (improves CBR)
+    //     if (_fee > 0) {
+    //         totalAsset.amount += _fee.toUint128();
+    //     }
 
-        bytes32 _callbackReturn = _receiver.onFlashLoan(msg.sender, _token, _amount, _fee, _data);
-
-        // Verify the callback returned the correct hash
-        if (_callbackReturn != keccak256("ERC3156FlashBorrower.onFlashLoan")) {
-            revert FlashLoanCallbackFailed();
-        }
-
-        // Verify we received at least the amount + fee
-        uint256 _balanceAfter = assetContract.balanceOf(address(this));
-        if (_balanceAfter < _balanceBefore + _fee) {
-            revert InsufficientFlashLoanRepayment();
-        }
-
-        // Handle fee distribution - add fee to total assets which increases CBR
-        if (_fee > 0) {
-            _totalAsset.amount += _fee.toUint128();
-            totalAsset = _totalAsset;
-        }
-
-        // If external vault exists, check if we should return excess liquidity
-        if (address(externalAssetVault) != address(0) && _fee > 0) {
-            externalAssetVault.whitelistUpdate(true);
-            uint256 _assetsUtilized = externalAssetVault.vaultUtilization(address(this));
-            bool _vaultOverUtilized =
-                1e18 * externalAssetVault.totalAssetsUtilized() / externalAssetVault.totalAssets() > 1e18 * 8 / 10;
-            bool _pairOverAllocation = _assetsUtilized > externalAssetVault.vaultMaxAllocation(address(this));
-            if (_vaultOverUtilized || _pairOverAllocation) {
-                uint256 _extAmount = _assetsUtilized > _fee ? _fee : _assetsUtilized;
-                if (_extAmount > 0) {
-                    _withdrawToVault(_extAmount);
-                }
-            }
-        }
-
-        emit FlashLoan(msg.sender, address(_receiver), _token, _amount, _fee);
-
-        return true;
-    }
+    //     emit FlashLoan(address(_receiver), _amount, _fee);
+    //     return true;
+    // }
 }

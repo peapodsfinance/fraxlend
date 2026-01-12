@@ -39,10 +39,9 @@ abstract contract FraxlendPairAccessControl is Timelock2Step, Ownable2Step, Frax
     // External asset vault
     IERC4626Extended public externalAssetVault;
 
-    // access control
-    uint256 public borrowLimit = type(uint256).max;
+    bool public isBorrowPaused;
 
-    uint256 public depositLimit = type(uint256).max;
+    bool public isDepositPaused;
 
     bool public isRepayPaused;
 
@@ -51,8 +50,6 @@ abstract contract FraxlendPairAccessControl is Timelock2Step, Ownable2Step, Frax
     bool public isLiquidatePaused;
 
     bool public isInterestPaused;
-
-    bool public isFlashLoanPaused;
 
     /// @param _immutables abi.encode(address _circuitBreakerAddress, address _comptrollerAddress, address _timelockAddress)
     constructor(bytes memory _immutables) Timelock2Step() Ownable(msg.sender) {
@@ -86,22 +83,22 @@ abstract contract FraxlendPairAccessControl is Timelock2Step, Ownable2Step, Frax
         }
     }
 
-    /// @notice The ```SetBorrowLimit``` event is emitted when the borrow limit is set
-    /// @param limit The new borrow limit
-    event SetBorrowLimit(uint256 limit);
+    /// @notice The ```PauseBorrow``` event is emitted when borrow is paused or unpaused
+    /// @param isPaused The new paused state
+    event PauseBorrow(bool isPaused);
 
-    function _setBorrowLimit(uint256 _limit) internal {
-        borrowLimit = _limit;
-        emit SetBorrowLimit(_limit);
+    function _pauseBorrow(bool _isPaused) internal {
+        isBorrowPaused = _isPaused;
+        emit PauseBorrow(_isPaused);
     }
 
-    /// @notice The ```SetDepositLimit``` event is emitted when the deposit limit is set
-    /// @param limit The new deposit limit
-    event SetDepositLimit(uint256 limit);
+    /// @notice The ```PauseDeposit``` event is emitted when deposit is paused or unpaused
+    /// @param isPaused The new paused state
+    event PauseDeposit(bool isPaused);
 
-    function _setDepositLimit(uint256 _limit) internal {
-        depositLimit = _limit;
-        emit SetDepositLimit(_limit);
+    function _pauseDeposit(bool _isPaused) internal {
+        isDepositPaused = _isPaused;
+        emit PauseDeposit(_isPaused);
     }
 
     /// @notice The ```PauseRepay``` event is emitted when repay is paused or unpaused
@@ -138,15 +135,6 @@ abstract contract FraxlendPairAccessControl is Timelock2Step, Ownable2Step, Frax
     function _pauseInterest(bool _isPaused) internal {
         isInterestPaused = _isPaused;
         emit PauseInterest(_isPaused);
-    }
-
-    /// @notice The ```PauseFlashLoan``` event is emitted when flash loans are paused or unpaused
-    /// @param isPaused The new paused state
-    event PauseFlashLoan(bool isPaused);
-
-    function _pauseFlashLoan(bool _isPaused) internal {
-        isFlashLoanPaused = _isPaused;
-        emit PauseFlashLoan(_isPaused);
     }
 
     /// @notice The ```SetExternalAssetVault``` event is emitted when the external vault account is changed
