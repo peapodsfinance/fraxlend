@@ -185,4 +185,8 @@ interface IFraxlendPair {
     function DEVIATION_PRECISION() external view returns (uint256);
     function RATE_PRECISION() external view returns (uint256);
     function MAX_PROTOCOL_FEE() external view returns (uint256);
+
+    // Whitelist
+    function whitelistedBorrowers(address) external view returns (bool);
+    function setWhitelistedBorrower(address _account, bool _isWhitelisted) external;
 }

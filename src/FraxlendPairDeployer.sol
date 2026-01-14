@@ -128,6 +128,58 @@ contract FraxlendPairDeployer is Ownable {
         _symbol = string(abi.encodePacked("pf", IERC20(_asset).safeSymbol(), "-", (_length + 1).toString()));
     }
 
+    /// @notice Compute the CREATE2 address for a FraxlendPair before deployment
+    /// @dev The salt is computed WITHOUT collateral to allow address prediction in circular dependency scenarios
+    ///      (e.g., when PodLPToken needs to know FraxlendPair address, but FraxlendPair needs PodLPToken as collateral)
+    /// @param _configData The config data (same as deploy function)
+    /// @param _name The name for the pair (use getNextNameSymbol to compute)
+    /// @param _symbol The symbol for the pair (use getNextNameSymbol to compute)
+    /// @return _pairAddress The predicted address
+    function computeAddress(bytes memory _configData, string memory _name, string memory _symbol)
+        external
+        view
+        returns (address _pairAddress)
+    {
+        (address _asset,,,,,,,,,,) = abi.decode(
+            _configData,
+            (address, address, address, uint32, address, uint64, uint256, uint256, uint256, uint256, uint256)
+        );
+
+        bytes memory _immutables = abi.encode(circuitBreakerAddress, comptrollerAddress, timelockAddress);
+        bytes memory _customConfigData = abi.encode(_name, _symbol, IERC20(_asset).safeDecimals());
+
+        // Compute salt WITHOUT collateral - uses only asset, immutables, and custom config
+        // This breaks the circular dependency with PodLPToken
+        bytes32 salt = _computeSaltWithoutCollateral(_asset, _immutables, _customConfigData);
+
+        // Get creation code
+        bytes memory _creationCode = SSTORE2.read(contractAddress1);
+        if (contractAddress2 != address(0)) {
+            _creationCode = BytesLib.concat(_creationCode, SSTORE2.read(contractAddress2));
+        }
+
+        // Get bytecode
+        bytes memory bytecode = abi.encodePacked(_creationCode, abi.encode(_configData, _immutables, _customConfigData));
+
+        // Compute CREATE2 address
+        bytes32 hash = keccak256(abi.encodePacked(bytes1(0xff), address(this), salt, keccak256(bytecode)));
+        _pairAddress = address(uint160(uint256(hash)));
+    }
+
+    /// @notice Compute a salt that doesn't include collateral address
+    /// @dev This enables address prediction for circular dependency scenarios
+    /// @param _asset The asset token address
+    /// @param _immutables The immutables data
+    /// @param _customConfigData The custom config data (name, symbol, decimals)
+    /// @return The computed salt
+    function _computeSaltWithoutCollateral(address _asset, bytes memory _immutables, bytes memory _customConfigData)
+        internal
+        pure
+        returns (bytes32)
+    {
+        return keccak256(abi.encodePacked(_asset, _immutables, _customConfigData));
+    }
+
     // ============================================================================================
     // Functions: Setters
     // ============================================================================================
@@ -249,8 +301,13 @@ contract FraxlendPairDeployer is Ownable {
         // Get bytecode
         bytes memory bytecode = abi.encodePacked(_creationCode, abi.encode(_configData, _immutables, _customConfigData));
 
-        // Generate salt using constructor params
-        bytes32 salt = keccak256(abi.encodePacked(_configData, _immutables, _customConfigData));
+        // Extract asset from configData for salt computation
+        (address _asset,,,,,,,,,) = abi.decode(
+            _configData, (address, address, address, uint32, address, uint64, uint256, uint256, uint256, uint256)
+        );
+
+        // Generate salt WITHOUT collateral - enables address prediction for circular dependencies
+        bytes32 salt = _computeSaltWithoutCollateral(_asset, _immutables, _customConfigData);
 
         /// @solidity memory-safe-assembly
         assembly {
