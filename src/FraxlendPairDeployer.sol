@@ -121,11 +121,26 @@ contract FraxlendPairDeployer is Ownable {
     }
 
     function getNextNameSymbol(address _asset) public view returns (string memory _name, string memory _symbol) {
+        return getNameSymbolAtOffset(_asset, 0);
+    }
+
+    /// @notice Get name/symbol for a FraxlendPair with a specific offset from current registry length
+    /// @dev Used for predicting names when multiple pairs will be deployed in sequence
+    /// @param _asset The asset token address
+    /// @param _offset Number of pairs that will be deployed before this one (0 = next, 1 = one after next, etc.)
+    /// @return _name The name for the pair
+    /// @return _symbol The symbol for the pair
+    function getNameSymbolAtOffset(address _asset, uint256 _offset)
+        public
+        view
+        returns (string memory _name, string memory _symbol)
+    {
         uint256 _length = IFraxlendPairRegistry(fraxlendPairRegistryAddress).deployedPairsLength();
+        uint256 _pairNumber = _length + 1 + _offset;
         _name = string(
-            abi.encodePacked("Peapods Interest Bearing ", IERC20(_asset).safeSymbol(), " - ", (_length + 1).toString())
+            abi.encodePacked("Peapods Interest Bearing ", IERC20(_asset).safeSymbol(), " - ", _pairNumber.toString())
         );
-        _symbol = string(abi.encodePacked("pf", IERC20(_asset).safeSymbol(), "-", (_length + 1).toString()));
+        _symbol = string(abi.encodePacked("pf", IERC20(_asset).safeSymbol(), "-", _pairNumber.toString()));
     }
 
     /// @notice Compute the CREATE2 address for a FraxlendPair before deployment
