@@ -189,4 +189,7 @@ interface IFraxlendPair {
     // Whitelist
     function whitelistedBorrowers(address) external view returns (bool);
     function setWhitelistedBorrower(address _account, bool _isWhitelisted) external;
+
+    // Collateral initialization (called by deployer after CREATE2 deployment)
+    function setCollateral(address _collateral) external;
 }

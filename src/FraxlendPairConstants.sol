@@ -74,4 +74,6 @@ abstract contract FraxlendPairConstants {
     error OnlyWhitelistedCBRBurner();
     error OnlyWhitelistedBorrower();
     error InsufficientShares();
+    error CollateralAlreadyInitialized();
+    error InvalidCollateral();
 }

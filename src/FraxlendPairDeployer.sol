@@ -144,9 +144,10 @@ contract FraxlendPairDeployer is Ownable {
     }
 
     /// @notice Compute the CREATE2 address for a FraxlendPair before deployment
-    /// @dev The salt is computed WITHOUT collateral to allow address prediction in circular dependency scenarios
+    /// @dev The salt AND bytecode are computed WITHOUT collateral to allow address prediction in circular dependency scenarios
     ///      (e.g., when PodLPToken needs to know FraxlendPair address, but FraxlendPair needs PodLPToken as collateral)
-    /// @param _configData The config data (same as deploy function)
+    ///      Collateral is set via setCollateral() after deployment.
+    /// @param _configData The config data (same as deploy function) - collateral field is ignored
     /// @param _name The name for the pair (use getNextNameSymbol to compute)
     /// @param _symbol The symbol for the pair (use getNextNameSymbol to compute)
     /// @return _pairAddress The predicted address
@@ -155,17 +156,28 @@ contract FraxlendPairDeployer is Ownable {
         view
         returns (address _pairAddress)
     {
-        (address _asset,,,,,,,,,,) = abi.decode(
-            _configData,
-            (address, address, address, uint32, address, uint64, uint256, uint256, uint256, uint256, uint256)
-        );
+        // Extract only the asset address (first 32 bytes of _configData)
+        address _asset;
+        assembly {
+            _asset := mload(add(_configData, 32))
+        }
 
         bytes memory _immutables = abi.encode(circuitBreakerAddress, comptrollerAddress, timelockAddress);
         bytes memory _customConfigData = abi.encode(_name, _symbol, IERC20(_asset).safeDecimals());
 
         // Compute salt WITHOUT collateral - uses only asset, immutables, and custom config
-        // This breaks the circular dependency with PodLPToken
         bytes32 salt = _computeSaltWithoutCollateral(_asset, _immutables, _customConfigData);
+
+        // Create config data with zeroed collateral for bytecode
+        // Copy _configData and zero out the collateral address (bytes 32-64)
+        bytes memory _zeroedConfigData = new bytes(_configData.length);
+        for (uint256 i = 0; i < _configData.length; i++) {
+            _zeroedConfigData[i] = _configData[i];
+        }
+        assembly {
+            // Zero out bytes 32-64 (collateral address) - offset is 32 (length) + 32 (first slot) = 64
+            mstore(add(_zeroedConfigData, 64), 0)
+        }
 
         // Get creation code
         bytes memory _creationCode = SSTORE2.read(contractAddress1);
@@ -173,8 +185,9 @@ contract FraxlendPairDeployer is Ownable {
             _creationCode = BytesLib.concat(_creationCode, SSTORE2.read(contractAddress2));
         }
 
-        // Get bytecode
-        bytes memory bytecode = abi.encodePacked(_creationCode, abi.encode(_configData, _immutables, _customConfigData));
+        // Get bytecode with zeroed collateral
+        bytes memory bytecode =
+            abi.encodePacked(_creationCode, abi.encode(_zeroedConfigData, _immutables, _customConfigData));
 
         // Compute CREATE2 address
         bytes32 hash = keccak256(abi.encodePacked(bytes1(0xff), address(this), salt, keccak256(bytecode)));
@@ -298,6 +311,7 @@ contract FraxlendPairDeployer is Ownable {
     // ============================================================================================
 
     /// @notice The ```_deploy``` function is an internal function with deploys the pair
+    /// @dev Deploys with zeroed collateral in bytecode for deterministic CREATE2 addresses, then sets collateral via setCollateral()
     /// @param _configData abi.encode(address _asset, address _collateral, address _oracle, uint32 _maxOracleDeviation, address _rateContract, uint64 _fullUtilizationRate, uint256 _maxLTV, uint256 _liquidationFee, uint256 _protocolLiquidationFee)
     /// @param _immutables abi.encode(address _circuitBreakerAddress, address _comptrollerAddress, address _timelockAddress)
     /// @param _customConfigData abi.encode(string memory _nameOfContract, string memory _symbolOfContract, uint8 _decimalsOfContract)
@@ -306,20 +320,29 @@ contract FraxlendPairDeployer is Ownable {
         private
         returns (address _pairAddress)
     {
+        // Extract only the asset address for salt computation (first 32 bytes of _configData)
+        address _asset;
+        assembly {
+            _asset := mload(add(_configData, 32))
+        }
+
+        // Create config data with zeroed collateral for deterministic bytecode
+        // Copy _configData and zero out the collateral address (bytes 32-64)
+        bytes memory _zeroedConfigData = _configData;
+        assembly {
+            // Zero out bytes 32-64 (collateral address) - offset is 32 (length) + 32 (first slot) = 64
+            mstore(add(_zeroedConfigData, 64), 0)
+        }
+
         // Get creation code
-        // bytes memory _creationCode = BytesLib.concat(SSTORE2.read(contractAddress1), SSTORE2.read(contractAddress2));
         bytes memory _creationCode = SSTORE2.read(contractAddress1);
         if (contractAddress2 != address(0)) {
             _creationCode = BytesLib.concat(_creationCode, SSTORE2.read(contractAddress2));
         }
 
-        // Get bytecode
-        bytes memory bytecode = abi.encodePacked(_creationCode, abi.encode(_configData, _immutables, _customConfigData));
-
-        // Extract asset from configData for salt computation
-        (address _asset,,,,,,,,,) = abi.decode(
-            _configData, (address, address, address, uint32, address, uint64, uint256, uint256, uint256, uint256)
-        );
+        // Get bytecode with zeroed collateral
+        bytes memory bytecode =
+            abi.encodePacked(_creationCode, abi.encode(_zeroedConfigData, _immutables, _customConfigData));
 
         // Generate salt WITHOUT collateral - enables address prediction for circular dependencies
         bytes32 salt = _computeSaltWithoutCollateral(_asset, _immutables, _customConfigData);
@@ -332,12 +355,16 @@ contract FraxlendPairDeployer is Ownable {
 
         deployedPairsArray.push(_pairAddress);
 
+        // NOTE: Collateral must be set via setCollateral() by the timelock (usually PodLeverageFactory)
+        // after deployment. The FraxlendPairDeployer cannot call it because the pair's timelock is
+        // set to timelockAddress (e.g., PodLeverageFactory), not this deployer contract.
+
         // Set additional values for FraxlendPair
-        IFraxlendPair _fraxlendPair = IFraxlendPair(_pairAddress);
         if (defaultDepositAmt > 0) {
-            IERC20(_fraxlendPair.asset()).safeTransferFrom(msg.sender, address(this), defaultDepositAmt);
-            IERC20(_fraxlendPair.asset()).approve(address(_fraxlendPair), defaultDepositAmt);
-            _fraxlendPair.deposit(defaultDepositAmt, msg.sender);
+            address _assetAddr = IFraxlendPair(_pairAddress).asset();
+            IERC20(_assetAddr).safeTransferFrom(msg.sender, address(this), defaultDepositAmt);
+            IERC20(_assetAddr).approve(_pairAddress, defaultDepositAmt);
+            IFraxlendPair(_pairAddress).deposit(defaultDepositAmt, msg.sender);
         }
 
         return _pairAddress;

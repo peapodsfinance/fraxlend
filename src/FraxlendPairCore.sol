@@ -53,7 +53,8 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
 
     // Asset and collateral contracts
     IERC20 internal immutable assetContract;
-    IERC20 public immutable collateralContract;
+    IERC20 public collateralContract;
+    bool private _collateralInitialized;
 
     // Deposit and Withdraw Fees
     /// @notice The deposit fee as a percentage of deposit amount (1e5 precision, e.g., 100 = 0.1%)
@@ -208,7 +209,8 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
 
             // Pair Settings
             assetContract = IERC20(_asset);
-            collateralContract = IERC20(_collateral);
+            // Note: collateralContract is set via setCollateral() after deployment
+            // to enable deterministic CREATE2 address prediction
 
             depositFee = _depositFee;
             withdrawFee = _withdrawFee;
@@ -244,6 +246,32 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
 
             // NOTE: creator should addInterest() and updateExchangeRate() at end of processing
         }
+    }
+
+    // ============================================================================================
+    // Functions: Collateral Initialization
+    // ============================================================================================
+
+    /// @notice The ```SetCollateral``` event is emitted when the collateral is initialized
+    /// @param collateral The collateral token address
+    event SetCollateral(address indexed collateral);
+
+    /// @notice Initialize the collateral token address (can only be called once)
+    /// @dev This is separated from the constructor to enable deterministic CREATE2 address prediction.
+    ///      The deployer must call this immediately after deployment.
+    /// @param _collateral The collateral token address
+    function setCollateral(address _collateral) external {
+        // Only callable by timelock (which is PodLeverageFactory for Peapods)
+        _requireTimelock();
+        // Can only be set once
+        if (_collateralInitialized) revert CollateralAlreadyInitialized();
+        // Must be a valid address
+        if (_collateral == address(0)) revert InvalidCollateral();
+
+        collateralContract = IERC20(_collateral);
+        _collateralInitialized = true;
+
+        emit SetCollateral(_collateral);
     }
 
     // ============================================================================================
