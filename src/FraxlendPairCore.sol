@@ -35,9 +35,7 @@ import {VaultAccount, VaultAccountingLibrary} from "./libraries/VaultAccount.sol
 import {SafeERC20} from "./libraries/SafeERC20.sol";
 import {IDualOracle} from "./interfaces/IDualOracle.sol";
 import {IRateCalculatorV2} from "./interfaces/IRateCalculatorV2.sol";
-import {ISwapper} from "./interfaces/ISwapper.sol";
 import {IERC3156FlashBorrower} from "./interfaces/IERC3156FlashBorrower.sol";
-import {IERC3156FlashLender} from "./interfaces/IERC3156FlashLender.sol";
 
 /// @title FraxlendPairCore
 /// @author Drake Evans (Frax Finance) https://github.com/drakeevans
@@ -294,18 +292,24 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         return _totalAsset.amount - _totalBorrow.amount;
     }
 
-    /// @notice The ```_isSolvent``` function determines if a given borrower is solvent given an exchange rate
-    /// @param _borrower The borrower address to check
-    /// @param _exchangeRate The exchange rate, i.e. the amount of collateral to buy 1e18 asset
-    /// @return Whether borrower is solvent & whether borrower can borrow more assets
+    /// @notice Returns the effective deposit fee (depositFee if set, otherwise MIN_TREASURY_FEE)
+    function _effectiveDepositFee() internal view returns (uint256) {
+        return depositFee > 0 ? depositFee : MIN_TREASURY_FEE;
+    }
+
+    /// @notice Returns the effective withdraw fee (withdrawFee if set, otherwise MIN_TREASURY_FEE)
+    function _effectiveWithdrawFee() internal view returns (uint256) {
+        return withdrawFee > 0 ? withdrawFee : MIN_TREASURY_FEE;
+    }
+
+    /// @notice Checks borrower solvency
     function _isSolvent(address _borrower, uint256 _exchangeRate) internal view returns (bool, bool) {
         if (maxLTV == 0) return (true, true);
-        uint256 _borrowerAmount = totalBorrow.toAmount(userBorrowShares[_borrower], true);
-        if (_borrowerAmount == 0) return (true, true);
-        uint256 _collateralAmount = userCollateralBalance[_borrower];
-        if (_collateralAmount == 0) return (false, false);
-
-        uint256 _ltv = (((_borrowerAmount * _exchangeRate) / EXCHANGE_PRECISION) * LTV_PRECISION) / _collateralAmount;
+        uint256 _borrow = totalBorrow.toAmount(userBorrowShares[_borrower], true);
+        if (_borrow == 0) return (true, true);
+        uint256 _coll = userCollateralBalance[_borrower];
+        if (_coll == 0) return (false, false);
+        uint256 _ltv = ((_borrow * _exchangeRate / EXCHANGE_PRECISION) * LTV_PRECISION) / _coll;
         return (_ltv <= maxLTV, _ltv <= maxBorrowLTV);
     }
 
@@ -566,14 +570,11 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         // Calc interest
         InterestCalculationResults memory _results = _calculateInterest(_currentRateInfo);
 
-        // Write return values only if interest was updated and calculated
         if (_results.isInterestUpdated) {
-            _isInterestUpdated = _results.isInterestUpdated;
+            _isInterestUpdated = true;
             _interestEarned = _results.interestEarned;
             _feesAmount = _results.feesAmount;
             _feesShare = _results.feesShare;
-
-            // emit here so that we have access to the old values
             emit UpdateRate(
                 _currentRateInfo.ratePerSec,
                 _currentRateInfo.fullUtilizationRate,
@@ -581,14 +582,10 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
                 _results.newFullUtilizationRate
             );
             emit AddInterest(_interestEarned, _results.newRate, _feesAmount, _feesShare);
-
-            // overwrite original values
             _currentRateInfo.ratePerSec = _results.newRate;
             _currentRateInfo.fullUtilizationRate = _results.newFullUtilizationRate;
             _currentRateInfo.lastTimestamp = uint64(block.timestamp);
             _currentRateInfo.lastBlock = uint32(block.number);
-
-            // Effects: write to state
             currentRateInfo = _currentRateInfo;
             totalAsset = _results.totalAsset;
             totalBorrow = _results.totalBorrow;
@@ -632,36 +629,23 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         internal
         returns (bool _isBorrowAllowed, uint256 _lowExchangeRate, uint256 _highExchangeRate)
     {
-        // Pull from storage to save gas and set default return values
-        ExchangeRateInfo memory _exchangeRateInfo = exchangeRateInfo;
-
-        // Short circuit if already updated this block
-        if (_exchangeRateInfo.lastTimestamp != block.timestamp) {
-            // Get the latest exchange rate from the dual oracle
-            bool _oneOracleBad;
-            (_oneOracleBad, _lowExchangeRate, _highExchangeRate) = IDualOracle(_exchangeRateInfo.oracle).getPrices();
-
-            // If one oracle is bad data, emit an event for off-chain monitoring
-            if (_oneOracleBad) emit WarnOracleData(_exchangeRateInfo.oracle);
-
-            // Effects: Bookkeeping and write to storage
-            _exchangeRateInfo.lastTimestamp = uint184(block.timestamp);
-            _exchangeRateInfo.lowExchangeRate = _lowExchangeRate;
-            _exchangeRateInfo.highExchangeRate = _highExchangeRate;
-            exchangeRateInfo = _exchangeRateInfo;
+        ExchangeRateInfo memory _info = exchangeRateInfo;
+        if (_info.lastTimestamp != block.timestamp) {
+            bool _bad;
+            (_bad, _lowExchangeRate, _highExchangeRate) = IDualOracle(_info.oracle).getPrices();
+            if (_bad) emit WarnOracleData(_info.oracle);
+            _info.lastTimestamp = uint184(block.timestamp);
+            _info.lowExchangeRate = _lowExchangeRate;
+            _info.highExchangeRate = _highExchangeRate;
+            exchangeRateInfo = _info;
             emit UpdateExchangeRate(_lowExchangeRate, _highExchangeRate);
         } else {
-            // Use default return values if already updated this block
-            _lowExchangeRate = _exchangeRateInfo.lowExchangeRate;
-            _highExchangeRate = _exchangeRateInfo.highExchangeRate;
+            _lowExchangeRate = _info.lowExchangeRate;
+            _highExchangeRate = _info.highExchangeRate;
         }
-
-        uint256 _deviation =
-            (DEVIATION_PRECISION * (_exchangeRateInfo.highExchangeRate - _exchangeRateInfo.lowExchangeRate))
-                / _exchangeRateInfo.highExchangeRate;
-        if (_deviation <= _exchangeRateInfo.maxOracleDeviation) {
-            _isBorrowAllowed = true;
-        }
+        _isBorrowAllowed =
+            (DEVIATION_PRECISION * (_info.highExchangeRate - _info.lowExchangeRate)) / _info.highExchangeRate
+                <= _info.maxOracleDeviation;
     }
 
     // ============================================================================================
@@ -694,7 +678,7 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         uint256 _amountAfterFee = _amount;
 
         // Determine effective fee: use depositFee if set, otherwise use MIN_TREASURY_FEE
-        uint256 _effectiveFee = depositFee > 0 ? depositFee : MIN_TREASURY_FEE;
+        uint256 _effectiveFee = _effectiveDepositFee();
 
         if (_shouldTransfer) {
             _depositFeeAmount = (_amount * _effectiveFee) / FEE_PRECISION;
@@ -763,10 +747,8 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
 
     function previewDeposit(uint256 _assets) external view returns (uint256 _sharesReceived) {
         (,,,, VaultAccount memory _totalAsset,) = previewAddInterest();
-        // Account for deposit fee (MIN_TREASURY_FEE or depositFee)
-        uint256 _effectiveFee = depositFee > 0 ? depositFee : MIN_TREASURY_FEE;
-        uint256 _assetsAfterFee = _assets - ((_assets * _effectiveFee) / FEE_PRECISION);
-        _sharesReceived = _totalAsset.toShares(_assetsAfterFee, false);
+        uint256 _effectiveFee = _effectiveDepositFee();
+        _sharesReceived = _totalAsset.toShares(_assets - ((_assets * _effectiveFee) / FEE_PRECISION), false);
     }
 
     /// @notice The ```deposit``` function allows a user to Lend Assets by specifying the amount of Asset Tokens to lend
@@ -787,7 +769,7 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         VaultAccount memory _totalAsset = totalAsset;
 
         // Calculate amount after fee (always applies: either depositFee or MIN_TREASURY_FEE)
-        uint256 _effectiveFee = depositFee > 0 ? depositFee : MIN_TREASURY_FEE;
+        uint256 _effectiveFee = _effectiveDepositFee();
         uint256 _amountAfterFee = _amount - ((_amount * _effectiveFee) / FEE_PRECISION);
 
         // Calculate the number of fTokens to mint based on amount after fee
@@ -844,12 +826,8 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
 
     function previewMint(uint256 _shares) external view returns (uint256 _amount) {
         (,,,, VaultAccount memory _totalAsset,) = previewAddInterest();
-        // Calculate base amount needed for the shares
-        uint256 _baseAmount = _totalAsset.toAmount(_shares, true);
-        // Account for deposit fee (MIN_TREASURY_FEE or depositFee)
-        // Formula: baseAmount = totalAmount - fee, so totalAmount = baseAmount * FEE_PRECISION / (FEE_PRECISION - fee)
-        uint256 _effectiveFee = depositFee > 0 ? depositFee : MIN_TREASURY_FEE;
-        _amount = (_baseAmount * FEE_PRECISION) / (FEE_PRECISION - _effectiveFee);
+        uint256 _effectiveFee = _effectiveDepositFee();
+        _amount = (_totalAsset.toAmount(_shares, true) * FEE_PRECISION) / (FEE_PRECISION - _effectiveFee);
     }
 
     function mint(uint256 _shares, address _receiver) external nonReentrant returns (uint256 _amount) {
@@ -869,7 +847,7 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
 
         // Account for deposit fee: user needs to send more to get the desired shares after fee
         // Formula: baseAmount = grossAmount - fee, so grossAmount = baseAmount * FEE_PRECISION / (FEE_PRECISION - fee)
-        uint256 _effectiveFee = depositFee > 0 ? depositFee : MIN_TREASURY_FEE;
+        uint256 _effectiveFee = _effectiveDepositFee();
         _amount = (_baseAmount * FEE_PRECISION) / (FEE_PRECISION - _effectiveFee);
 
         // Execute the deposit effects
@@ -915,7 +893,7 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         // Only apply fees for external withdrawals (not internal operations)
         if (_receiver != address(this) && _owner != address(externalAssetVault)) {
             // Determine effective fee: use withdrawFee if set, otherwise use MIN_TREASURY_FEE
-            uint256 _effectiveFee = withdrawFee > 0 ? withdrawFee : MIN_TREASURY_FEE;
+            uint256 _effectiveFee = _effectiveWithdrawFee();
             _withdrawFeeAmount = (_amountToReturn * _effectiveFee) / FEE_PRECISION;
             _amountAfterFee = _amountToReturn - _withdrawFeeAmount;
 
@@ -977,10 +955,8 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
 
     function previewRedeem(uint256 _shares) external view returns (uint256 _assets) {
         (,,,, VaultAccount memory _totalAsset,) = previewAddInterest();
-        // Calculate base assets for the shares
+        uint256 _effectiveFee = _effectiveWithdrawFee();
         uint256 _baseAssets = _totalAsset.toAmount(_shares, false);
-        // Account for withdrawal fee (MIN_TREASURY_FEE or withdrawFee)
-        uint256 _effectiveFee = withdrawFee > 0 ? withdrawFee : MIN_TREASURY_FEE;
         _assets = _baseAssets - ((_baseAssets * _effectiveFee) / FEE_PRECISION);
     }
 
@@ -1009,7 +985,7 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         uint256 _grossAmount = _totalAsset.toAmount(_shares, false);
 
         // Calculate the net amount after fee (what user actually receives)
-        uint256 _effectiveFee = withdrawFee > 0 ? withdrawFee : MIN_TREASURY_FEE;
+        uint256 _effectiveFee = _effectiveWithdrawFee();
         _amountToReturn = _grossAmount - ((_grossAmount * _effectiveFee) / FEE_PRECISION);
 
         // Execute the withdraw effects (fee logic is handled internally in _redeem)
@@ -1021,12 +997,8 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
     /// @return _sharesToBurn The number of shares that would be burned
     function previewWithdraw(uint256 _amount) external view returns (uint256 _sharesToBurn) {
         (,,,, VaultAccount memory _totalAsset,) = previewAddInterest();
-        // Account for withdrawal fee (MIN_TREASURY_FEE or withdrawFee)
-        // User wants to receive _amount, so we need to calculate the gross amount before fee
-        // Formula: netAmount = grossAmount - fee, so grossAmount = netAmount * FEE_PRECISION / (FEE_PRECISION - fee)
-        uint256 _effectiveFee = withdrawFee > 0 ? withdrawFee : MIN_TREASURY_FEE;
-        uint256 _grossAmount = (_amount * FEE_PRECISION) / (FEE_PRECISION - _effectiveFee);
-        _sharesToBurn = _totalAsset.toShares(_grossAmount, true);
+        uint256 _effectiveFee = _effectiveWithdrawFee();
+        _sharesToBurn = _totalAsset.toShares((_amount * FEE_PRECISION) / (FEE_PRECISION - _effectiveFee), true);
     }
 
     /// @notice The ```withdraw``` function allows the caller to withdraw their Asset Tokens for a given amount of fTokens
@@ -1052,7 +1024,7 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
 
         // Calculate the gross amount needed so user receives _amount after fee deduction
         // Formula: netAmount = grossAmount - fee, so grossAmount = netAmount * FEE_PRECISION / (FEE_PRECISION - fee)
-        uint256 _effectiveFee = withdrawFee > 0 ? withdrawFee : MIN_TREASURY_FEE;
+        uint256 _effectiveFee = _effectiveWithdrawFee();
         uint256 _grossAmount = (_amount * FEE_PRECISION) / (FEE_PRECISION - _effectiveFee);
 
         // Calculate the number of shares to burn based on the gross amount
@@ -1082,34 +1054,16 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
     /// @param isWhitelisted Whether the address is now whitelisted
     event SetWhitelistedBorrower(address indexed account, bool isWhitelisted);
 
-    /// @notice Burns shares owned by msg.sender to improve CBR for all remaining holders
-    /// @dev Only callable by whitelisted addresses (e.g., vlPEAS). Shares are burned but assets stay in pool.
-    /// @param _shares The number of shares to burn
-    /// @return _assetsValue The asset value of the burned shares
+    /// @notice Burns shares to improve CBR. Only whitelisted addresses.
     function burnForCBR(uint256 _shares) external nonReentrant returns (uint256 _assetsValue) {
-        // Only whitelisted addresses can burn for CBR
         if (!cbrBurnWhitelist[msg.sender]) revert OnlyWhitelistedCBRBurner();
-
-        // Accrue interest first
         _addInterest();
-
-        // Pull from storage
         VaultAccount memory _totalAsset = totalAsset;
-
-        // Calculate the asset value of shares being burned
         _assetsValue = _totalAsset.toAmount(_shares, false);
-
-        // Check that caller has sufficient shares
         if (balanceOf(msg.sender) < _shares) revert InsufficientShares();
-
-        // Effects: burn shares but keep assets in pool (improves CBR)
         _burn(msg.sender, _shares);
         _totalAsset.shares -= _shares.toUint128();
-        // Note: _totalAsset.amount stays the same, increasing the value per remaining share
-
-        // Write back to storage
         totalAsset = _totalAsset;
-
         emit CBRBurn(msg.sender, _shares, _assetsValue);
     }
 
@@ -1513,48 +1467,48 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         }
     }
 
-    // /// @notice The ```FlashLoan``` event is emitted when a flash loan is executed
-    // event FlashLoan(address indexed receiver, uint256 amount, uint256 fee);
+    /// @notice The ```FlashLoan``` event is emitted when a flash loan is executed
+    event FlashLoan(address indexed receiver, uint256 amount, uint256 fee);
 
-    // /// @notice The ```flashLoan``` function provides ERC-3156 compliant flash loans for local assets only
-    // /// @param _receiver The address that will receive the flash loan and implement the callback
-    // /// @param _token The token address to flash loan (must be the asset token)
-    // /// @param _amount The amount of tokens to flash loan
-    // /// @param _data Arbitrary data to pass to the receiver's callback
-    // /// @return True if the flash loan was successful
-    // function flashLoan(IERC3156FlashBorrower _receiver, address _token, uint256 _amount, bytes calldata _data)
-    //     external
-    //     nonReentrant
-    //     returns (bool)
-    // {
-    //     if (_token != address(assetContract)) revert UnsupportedCurrency();
+    /// @notice The ```flashLoan``` function provides ERC-3156 compliant flash loans for local assets only
+    /// @param _receiver The address that will receive the flash loan and implement the callback
+    /// @param _token The token address to flash loan (must be the asset token)
+    /// @param _amount The amount of tokens to flash loan
+    /// @param _data Arbitrary data to pass to the receiver's callback
+    /// @return True if the flash loan was successful
+    function flashLoan(IERC3156FlashBorrower _receiver, address _token, uint256 _amount, bytes calldata _data)
+        external
+        nonReentrant
+        returns (bool)
+    {
+        if (_token != address(assetContract)) revert UnsupportedCurrency();
 
-    //     // Only check local assets (no external vault)
-    //     uint256 _available = _totalAssetAvailable(totalAsset, totalBorrow, false);
-    //     if (_amount > _available) revert InsufficientAssetsInContract(_available, _amount);
+        // Only check local assets (no external vault)
+        uint256 _available = _totalAssetAvailable(totalAsset, totalBorrow, false);
+        if (_amount > _available) revert InsufficientAssetsInContract(_available, _amount);
 
-    //     uint256 _fee = (_amount * 10) / FEE_PRECISION; // 0.01%
-    //     uint256 _balanceBefore = assetContract.balanceOf(address(this));
+        uint256 _fee = (_amount * 10) / FEE_PRECISION; // 0.01%
+        uint256 _balanceBefore = assetContract.balanceOf(address(this));
 
-    //     assetContract.safeTransfer(address(_receiver), _amount);
+        assetContract.safeTransfer(address(_receiver), _amount);
 
-    //     if (
-    //         _receiver.onFlashLoan(msg.sender, _token, _amount, _fee, _data)
-    //             != keccak256("ERC3156FlashBorrower.onFlashLoan")
-    //     ) {
-    //         revert FlashLoanCallbackFailed();
-    //     }
+        if (
+            _receiver.onFlashLoan(msg.sender, _token, _amount, _fee, _data)
+                != keccak256("ERC3156FlashBorrower.onFlashLoan")
+        ) {
+            revert FlashLoanCallbackFailed();
+        }
 
-    //     if (assetContract.balanceOf(address(this)) < _balanceBefore + _fee) {
-    //         revert InsufficientFlashLoanRepayment();
-    //     }
+        if (assetContract.balanceOf(address(this)) < _balanceBefore + _fee) {
+            revert InsufficientFlashLoanRepayment();
+        }
 
-    //     // Add fee to total assets (improves CBR)
-    //     if (_fee > 0) {
-    //         totalAsset.amount += _fee.toUint128();
-    //     }
+        // Add fee to total assets (improves CBR)
+        if (_fee > 0) {
+            totalAsset.amount += _fee.toUint128();
+        }
 
-    //     emit FlashLoan(address(_receiver), _amount, _fee);
-    //     return true;
-    // }
+        emit FlashLoan(address(_receiver), _amount, _fee);
+        return true;
+    }
 }

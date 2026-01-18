@@ -137,13 +137,11 @@ abstract contract FraxlendPairAccessControl is Timelock2Step, Ownable2Step, Frax
         emit PauseInterest(_isPaused);
     }
 
-    /// @notice The ```SetExternalAssetVault``` event is emitted when the external vault account is changed
-    event SetExternalAssetVault(address oldVault, address newVault);
+    event SetExternalAssetVault(address vault);
 
     function _setExternalAssetVault(IERC4626Extended vault) internal {
-        IERC4626Extended _oldVault = externalAssetVault;
         externalAssetVault = vault;
-        emit SetExternalAssetVault(address(_oldVault), address(vault));
+        emit SetExternalAssetVault(address(vault));
     }
 
     /// @notice The ```setExternalAssetVault``` function is called to set the external asset vault for the pair
@@ -153,17 +151,11 @@ abstract contract FraxlendPairAccessControl is Timelock2Step, Ownable2Step, Frax
         _setExternalAssetVault(vault);
     }
 
-    /// @notice The ```SetCircuitBreaker``` event is emitted when the circuit breaker address is set
-    /// @param oldCircuitBreaker The old circuit breaker address
-    /// @param newCircuitBreaker The new circuit breaker address
-    event SetCircuitBreaker(address oldCircuitBreaker, address newCircuitBreaker);
+    event SetCircuitBreaker(address circuitBreaker);
 
-    /// @notice The ```_setCircuitBreaker``` function is called to set the circuit breaker address
-    /// @param _newCircuitBreaker The new circuit breaker address
     function _setCircuitBreaker(address _newCircuitBreaker) internal {
-        address oldCircuitBreaker = circuitBreakerAddress;
         circuitBreakerAddress = _newCircuitBreaker;
-        emit SetCircuitBreaker(oldCircuitBreaker, _newCircuitBreaker);
+        emit SetCircuitBreaker(_newCircuitBreaker);
     }
 
     /// @notice The ```setCircuitBreaker``` function is called to set the circuit breaker address
