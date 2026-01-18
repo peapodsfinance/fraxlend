@@ -763,7 +763,10 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
 
     function previewDeposit(uint256 _assets) external view returns (uint256 _sharesReceived) {
         (,,,, VaultAccount memory _totalAsset,) = previewAddInterest();
-        _sharesReceived = _totalAsset.toShares(_assets, false);
+        // Account for deposit fee (MIN_TREASURY_FEE or depositFee)
+        uint256 _effectiveFee = depositFee > 0 ? depositFee : MIN_TREASURY_FEE;
+        uint256 _assetsAfterFee = _assets - ((_assets * _effectiveFee) / FEE_PRECISION);
+        _sharesReceived = _totalAsset.toShares(_assetsAfterFee, false);
     }
 
     /// @notice The ```deposit``` function allows a user to Lend Assets by specifying the amount of Asset Tokens to lend
@@ -841,7 +844,12 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
 
     function previewMint(uint256 _shares) external view returns (uint256 _amount) {
         (,,,, VaultAccount memory _totalAsset,) = previewAddInterest();
-        _amount = _totalAsset.toAmount(_shares, true);
+        // Calculate base amount needed for the shares
+        uint256 _baseAmount = _totalAsset.toAmount(_shares, true);
+        // Account for deposit fee (MIN_TREASURY_FEE or depositFee)
+        // Formula: baseAmount = totalAmount - fee, so totalAmount = baseAmount * FEE_PRECISION / (FEE_PRECISION - fee)
+        uint256 _effectiveFee = depositFee > 0 ? depositFee : MIN_TREASURY_FEE;
+        _amount = (_baseAmount * FEE_PRECISION) / (FEE_PRECISION - _effectiveFee);
     }
 
     function mint(uint256 _shares, address _receiver) external nonReentrant returns (uint256 _amount) {
@@ -856,8 +864,13 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         // Check if deposit is paused
         if (isDepositPaused) revert DepositPaused();
 
-        // Calculate the number of assets to transfer based on the shares to mint
-        _amount = _totalAsset.toAmount(_shares, true);
+        // Calculate the base amount of assets needed for the shares
+        uint256 _baseAmount = _totalAsset.toAmount(_shares, true);
+
+        // Account for deposit fee: user needs to send more to get the desired shares after fee
+        // Formula: baseAmount = grossAmount - fee, so grossAmount = baseAmount * FEE_PRECISION / (FEE_PRECISION - fee)
+        uint256 _effectiveFee = depositFee > 0 ? depositFee : MIN_TREASURY_FEE;
+        _amount = (_baseAmount * FEE_PRECISION) / (FEE_PRECISION - _effectiveFee);
 
         // Execute the deposit effects
         _deposit(_totalAsset, _amount.toUint128(), _shares.toUint128(), _receiver, true);
@@ -964,14 +977,18 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
 
     function previewRedeem(uint256 _shares) external view returns (uint256 _assets) {
         (,,,, VaultAccount memory _totalAsset,) = previewAddInterest();
-        _assets = _totalAsset.toAmount(_shares, false);
+        // Calculate base assets for the shares
+        uint256 _baseAssets = _totalAsset.toAmount(_shares, false);
+        // Account for withdrawal fee (MIN_TREASURY_FEE or withdrawFee)
+        uint256 _effectiveFee = withdrawFee > 0 ? withdrawFee : MIN_TREASURY_FEE;
+        _assets = _baseAssets - ((_baseAssets * _effectiveFee) / FEE_PRECISION);
     }
 
     /// @notice The ```redeem``` function allows the caller to redeem their Asset Shares for Asset Tokens
     /// @param _shares The number of Asset Shares (fTokens) to burn for Asset Tokens
     /// @param _receiver The address to which the Asset Tokens will be transferred
     /// @param _owner The owner of the Asset Shares (fTokens)
-    /// @return _amountToReturn The amount of Asset Tokens to be transferred
+    /// @return _amountToReturn The net amount of Asset Tokens transferred to receiver (after fees)
     function redeem(uint256 _shares, address _receiver, address _owner)
         external
         nonReentrant
@@ -988,23 +1005,32 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         // Pull from storage to save gas
         VaultAccount memory _totalAsset = totalAsset;
 
-        // Calculate the number of assets to transfer based on the shares to burn
-        _amountToReturn = _totalAsset.toAmount(_shares, false);
+        // Calculate the gross amount of assets based on the shares to burn
+        uint256 _grossAmount = _totalAsset.toAmount(_shares, false);
+
+        // Calculate the net amount after fee (what user actually receives)
+        uint256 _effectiveFee = withdrawFee > 0 ? withdrawFee : MIN_TREASURY_FEE;
+        _amountToReturn = _grossAmount - ((_grossAmount * _effectiveFee) / FEE_PRECISION);
 
         // Execute the withdraw effects (fee logic is handled internally in _redeem)
-        _redeem(_totalAsset, _amountToReturn.toUint128(), _shares.toUint128(), _receiver, _owner, false);
+        _redeem(_totalAsset, _grossAmount.toUint128(), _shares.toUint128(), _receiver, _owner, false);
     }
 
     /// @notice The ```previewWithdraw``` function returns the number of Asset Shares (fTokens) that would be burned for a given amount of Asset Tokens
-    /// @param _amount The amount of Asset Tokens to be withdrawn
+    /// @param _amount The amount of Asset Tokens to be withdrawn (net amount user wants to receive)
     /// @return _sharesToBurn The number of shares that would be burned
     function previewWithdraw(uint256 _amount) external view returns (uint256 _sharesToBurn) {
         (,,,, VaultAccount memory _totalAsset,) = previewAddInterest();
-        _sharesToBurn = _totalAsset.toShares(_amount, true);
+        // Account for withdrawal fee (MIN_TREASURY_FEE or withdrawFee)
+        // User wants to receive _amount, so we need to calculate the gross amount before fee
+        // Formula: netAmount = grossAmount - fee, so grossAmount = netAmount * FEE_PRECISION / (FEE_PRECISION - fee)
+        uint256 _effectiveFee = withdrawFee > 0 ? withdrawFee : MIN_TREASURY_FEE;
+        uint256 _grossAmount = (_amount * FEE_PRECISION) / (FEE_PRECISION - _effectiveFee);
+        _sharesToBurn = _totalAsset.toShares(_grossAmount, true);
     }
 
     /// @notice The ```withdraw``` function allows the caller to withdraw their Asset Tokens for a given amount of fTokens
-    /// @param _amount The amount to withdraw
+    /// @param _amount The net amount to withdraw (what user will actually receive after fees)
     /// @param _receiver The address to which the Asset Tokens will be transferred
     /// @param _owner The owner of the Asset Shares (fTokens)
     /// @return _sharesToBurn The number of shares (fTokens) that were burned
@@ -1024,11 +1050,16 @@ abstract contract FraxlendPairCore is FraxlendPairAccessControl, FraxlendPairCon
         // Pull from storage to save gas
         VaultAccount memory _totalAsset = totalAsset;
 
-        // Calculate the number of shares to burn based on the amount to withdraw
-        _sharesToBurn = _totalAsset.toShares(_amount, true);
+        // Calculate the gross amount needed so user receives _amount after fee deduction
+        // Formula: netAmount = grossAmount - fee, so grossAmount = netAmount * FEE_PRECISION / (FEE_PRECISION - fee)
+        uint256 _effectiveFee = withdrawFee > 0 ? withdrawFee : MIN_TREASURY_FEE;
+        uint256 _grossAmount = (_amount * FEE_PRECISION) / (FEE_PRECISION - _effectiveFee);
+
+        // Calculate the number of shares to burn based on the gross amount
+        _sharesToBurn = _totalAsset.toShares(_grossAmount, true);
 
         // Execute the withdraw effects
-        _redeem(_totalAsset, _amount.toUint128(), _sharesToBurn.toUint128(), _receiver, _owner, false);
+        _redeem(_totalAsset, _grossAmount.toUint128(), _sharesToBurn.toUint128(), _receiver, _owner, false);
     }
 
     // ============================================================================================

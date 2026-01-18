@@ -150,7 +150,12 @@ contract FraxlendPair is IERC20Metadata, FraxlendPairCore {
         // Return the lower of total assets in contract or total assets available to _owner
         uint256 _totalAssetsAvailable = _totalAssetAvailable(_totalAsset, _totalBorrow, true);
         uint256 _totalUserWithdraw = _totalAsset.toAmount(_ownerBalance, false);
-        _maxAssets = _totalAssetsAvailable < _totalUserWithdraw ? _totalAssetsAvailable : _totalUserWithdraw;
+        uint256 _grossMaxAssets =
+            _totalAssetsAvailable < _totalUserWithdraw ? _totalAssetsAvailable : _totalUserWithdraw;
+
+        // Account for withdrawal fee to return net amount user would actually receive
+        uint256 _effectiveFee = withdrawFee > 0 ? withdrawFee : MIN_TREASURY_FEE;
+        _maxAssets = _grossMaxAssets - ((_grossMaxAssets * _effectiveFee) / FEE_PRECISION);
     }
 
     function maxRedeem(address _owner) external view returns (uint256 _maxShares) {
